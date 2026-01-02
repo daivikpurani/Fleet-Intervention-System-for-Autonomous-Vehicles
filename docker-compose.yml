@@ -56,6 +56,49 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # TODO: Add replay-service configuration
+  # replay-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/replay-service/Dockerfile
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     L5KIT_DATASET_PATH: ${L5KIT_DATASET_PATH}
+  #   ports:
+  #     - "${REPLAY_SERVICE_PORT:-8001}:8000"
+
+  # TODO: Add anomaly-service configuration
+  # anomaly-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/anomaly-service/Dockerfile
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   ports:
+  #     - "${ANOMALY_SERVICE_PORT:-8002}:8000"
+
+  # TODO: Add operator-service configuration
+  # operator-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/operator-service/Dockerfile
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-fleetops}
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   ports:
+  #     - "${OPERATOR_SERVICE_PORT:-8003}:8000"
+
 volumes:
   postgres_data:
   zookeeper_data:
