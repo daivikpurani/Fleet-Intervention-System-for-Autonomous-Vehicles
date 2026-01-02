@@ -13,3 +13,8 @@ kafka-python>=2.0.0,<3.0.0
 fastapi>=0.100.0,<1.0.0
 uvicorn>=0.23.0,<1.0.0
 
+# Phase 5: Database dependencies for operator service
+sqlalchemy>=2.0.0,<3.0.0
+alembic>=1.12.0,<2.0.0
+psycopg2-binary>=2.9.0,<3.0.0
+

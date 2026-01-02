@@ -5,7 +5,9 @@ Thin wrapper for consuming AnomalyEvent messages from the anomalies topic.
 
 import json
 import logging
+from collections import deque
 from typing import Iterator, Optional
+from uuid import UUID
 
 from services.schemas.events import AnomalyEvent
 
@@ -13,24 +15,22 @@ from .config import OperatorConfig
 
 logger = logging.getLogger(__name__)
 
-# TODO: Implement anomaly_id-based deduplication here
-# This will prevent processing duplicate anomalies if the consumer receives them
-# TODO: Implement per-vehicle ordering guarantees enforcement here
-# This will ensure anomalies from the same vehicle are processed in order
-
 
 class KafkaConsumer:
     """Thin Kafka consumer wrapper for anomalies topic."""
 
-    def __init__(self, config: OperatorConfig):
+    def __init__(self, config: OperatorConfig, deduplication_cache_size: int = 1000):
         """Initialize consumer with configuration.
 
         Args:
             config: Operator service configuration
+            deduplication_cache_size: Maximum number of anomaly_ids to keep in cache
         """
         self.config = config
         self._consumer: Optional[object] = None
         self._initialized = False
+        # In-memory deduplication cache: use deque for bounded size
+        self._seen_anomaly_ids: deque = deque(maxlen=deduplication_cache_size)
 
     def _ensure_initialized(self) -> bool:
         """Initialize Kafka consumer if not already initialized.
@@ -64,10 +64,10 @@ class KafkaConsumer:
             return False
 
     def consume(self) -> Iterator[AnomalyEvent]:
-        """Consume messages from Kafka.
+        """Consume messages from Kafka with deduplication.
 
         Yields:
-            AnomalyEvent instances
+            AnomalyEvent instances (deduplicated by anomaly_id)
 
         This is a safe no-op if Kafka is unavailable (yields nothing).
         """
@@ -79,7 +79,18 @@ class KafkaConsumer:
             for message in self._consumer:
                 try:
                     event = AnomalyEvent(**message.value)
-                    logger.debug(f"Consumed anomaly {event.anomaly_id} for vehicle {event.vehicle_id}")
+                    anomaly_id = event.anomaly_id
+
+                    # Deduplication: skip if we've seen this anomaly_id recently
+                    if anomaly_id in self._seen_anomaly_ids:
+                        logger.debug(
+                            f"Skipping duplicate anomaly {anomaly_id} for vehicle {event.vehicle_id}"
+                        )
+                        continue
+
+                    # Add to cache
+                    self._seen_anomaly_ids.append(anomaly_id)
+                    logger.debug(f"Consumed anomaly {anomaly_id} for vehicle {event.vehicle_id}")
                     yield event
                 except Exception as e:
                     logger.warning(f"Failed to parse message: {e}")

@@ -70,10 +70,10 @@ class KafkaProducer:
             return
 
         try:
-            # Partition key: action_id
+            # Partition key: vehicle_id (for per-vehicle ordering)
             self._producer.send(
                 topic="operator_actions",
-                key=str(event.action_id),
+                key=event.vehicle_id,
                 value=event.model_dump(),
             )
             logger.debug(f"Published action {event.action_id} for vehicle {event.vehicle_id}")
