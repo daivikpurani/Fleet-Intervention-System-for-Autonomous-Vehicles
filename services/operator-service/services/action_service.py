@@ -116,7 +116,7 @@ class ActionService:
         # Note: We need scene_id and frame_index for OperatorActionEvent
         # For now, get from alert if available, otherwise use defaults
         scene_id = alert.scene_id if alert else ""
-        frame_index = int(alert.frame_index) if alert and alert.frame_index.isdigit() else 0
+        frame_index = alert.frame_index if alert else 0
 
         action_event = OperatorActionEvent(
             action_id=action.id,

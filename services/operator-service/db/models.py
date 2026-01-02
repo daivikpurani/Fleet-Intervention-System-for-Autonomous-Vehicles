@@ -6,6 +6,7 @@ from typing import Any, Dict
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    Integer,
     JSON,
     Column,
     DateTime,
@@ -67,7 +68,7 @@ class Alert(Base):
     id = Column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     vehicle_id = Column(Text, nullable=False, index=True)
     scene_id = Column(Text, nullable=False)
-    frame_index = Column(String, nullable=False)
+    frame_index = Column(Integer, nullable=False)
     anomaly_id = Column(PostgresUUID(as_uuid=True), nullable=False, unique=True)
     rule_name = Column(Text, nullable=False)
     severity = Column(SQLEnum(Severity), nullable=False)

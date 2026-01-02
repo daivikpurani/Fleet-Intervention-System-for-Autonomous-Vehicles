@@ -51,7 +51,7 @@ class AlertService:
         alert = Alert(
             vehicle_id=event.vehicle_id,
             scene_id=event.scene_id,
-            frame_index=str(event.frame_index),
+            frame_index=event.frame_index,
             anomaly_id=event.anomaly_id,
             rule_name=event.rule_name,
             severity=event.severity,

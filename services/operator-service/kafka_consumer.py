@@ -29,8 +29,10 @@ class KafkaConsumer:
         self.config = config
         self._consumer: Optional[object] = None
         self._initialized = False
-        # In-memory deduplication cache: use deque for bounded size
+        self._deduplication_cache_size = deduplication_cache_size
+        # In-memory deduplication cache: use deque for bounded size and set for O(1) lookups
         self._seen_anomaly_ids: deque = deque(maxlen=deduplication_cache_size)
+        self._seen_anomaly_ids_set: set[UUID] = set()
 
     def _ensure_initialized(self) -> bool:
         """Initialize Kafka consumer if not already initialized.
@@ -81,15 +83,21 @@ class KafkaConsumer:
                     event = AnomalyEvent(**message.value)
                     anomaly_id = event.anomaly_id
 
-                    # Deduplication: skip if we've seen this anomaly_id recently
-                    if anomaly_id in self._seen_anomaly_ids:
+                    # Deduplication: skip if we've seen this anomaly_id recently (O(1) lookup)
+                    if anomaly_id in self._seen_anomaly_ids_set:
                         logger.debug(
                             f"Skipping duplicate anomaly {anomaly_id} for vehicle {event.vehicle_id}"
                         )
                         continue
 
-                    # Add to cache
+                    # Evict oldest if cache is full (before deque auto-evicts)
+                    if len(self._seen_anomaly_ids) >= self._deduplication_cache_size:
+                        oldest_id = self._seen_anomaly_ids[0]
+                        self._seen_anomaly_ids_set.discard(oldest_id)
+
+                    # Add to cache (both structures)
                     self._seen_anomaly_ids.append(anomaly_id)
+                    self._seen_anomaly_ids_set.add(anomaly_id)
                     logger.debug(f"Consumed anomaly {anomaly_id} for vehicle {event.vehicle_id}")
                     yield event
                 except Exception as e:

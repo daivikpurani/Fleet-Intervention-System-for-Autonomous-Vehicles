@@ -25,7 +25,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('vehicle_id', sa.Text(), nullable=False),
         sa.Column('scene_id', sa.Text(), nullable=False),
-        sa.Column('frame_index', sa.String(), nullable=False),
+        sa.Column('frame_index', sa.Integer(), nullable=False),
         sa.Column('anomaly_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('rule_name', sa.Text(), nullable=False),
         sa.Column('severity', sa.Enum('INFO', 'WARNING', 'CRITICAL', name='severity'), nullable=False),

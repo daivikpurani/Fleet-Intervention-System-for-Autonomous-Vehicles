@@ -15,7 +15,7 @@ class AlertResponse(BaseModel):
     id: UUID
     vehicle_id: str
     scene_id: str
-    frame_index: str
+    frame_index: int
     anomaly_id: UUID
     rule_name: str
     severity: Severity
