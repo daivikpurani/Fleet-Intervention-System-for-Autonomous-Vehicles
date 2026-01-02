@@ -63,7 +63,7 @@ class ReplayEngine:
         self.scheduler = scheduler
         self.normalizer = normalizer
         
-        self._running = False
+        self._running_event = threading.Event()
         self._replay_thread: Optional[threading.Thread] = None
         self._current_scene_id: Optional[int] = None
         self._current_frame_index: Optional[int] = None
@@ -78,7 +78,7 @@ class ReplayEngine:
         Args:
             scene_ids: List of scene IDs to replay. If None, replays all scenes.
         """
-        if self._running:
+        if self._running_event.is_set():
             logger.warning("Replay already running")
             return
         
@@ -89,7 +89,7 @@ class ReplayEngine:
             logger.warning("No scenes to replay")
             return
         
-        self._running = True
+        self._running_event.set()
         self.scheduler.start()
         
         # Reset state
@@ -108,11 +108,11 @@ class ReplayEngine:
 
     def stop(self) -> None:
         """Stop replay."""
-        if not self._running:
+        if not self._running_event.is_set():
             logger.warning("Replay not running")
             return
         
-        self._running = False
+        self._running_event.clear()
         self.scheduler.reset()
         
         if self._replay_thread:
@@ -136,7 +136,7 @@ class ReplayEngine:
             - replay_rate: Current replay rate in Hz
         """
         return {
-            'active': self._running,
+            'active': self._running_event.is_set(),
             'scene_id': self._current_scene_id,
             'frame_index': self._current_frame_index,
             'replay_rate': self.scheduler.replay_rate_hz,
@@ -156,19 +156,19 @@ class ReplayEngine:
         try:
             # Process scenes in ascending order (deterministic)
             for scene_id in sorted(scene_ids):
-                if not self._running:
+                if not self._running_event.is_set():
                     break
                 
                 self._current_scene_id = scene_id
                 self._replay_scene(scene_id)
             
             # Replay complete
-            self._running = False
+            self._running_event.clear()
             logger.info("Replay loop completed")
             
         except Exception as e:
             logger.error(f"Error in replay loop: {e}", exc_info=True)
-            self._running = False
+            self._running_event.clear()
             raise
 
     def _replay_scene(self, scene_id: int) -> None:
@@ -184,7 +184,7 @@ class ReplayEngine:
         
         # Process frames in ascending order (deterministic)
         for frame_index in range(start_frame, end_frame):
-            if not self._running:
+            if not self._running_event.is_set():
                 break
             
             self._current_frame_index = frame_index
@@ -269,7 +269,7 @@ class ReplayEngine:
         dtype_names = agents.dtype.names if hasattr(agents.dtype, 'names') and agents.dtype.names else None
         if dtype_names and 'track_id' in dtype_names:
             for agent in agents:
-                if not self._running:
+                if not self._running_event.is_set():
                     break
                 
                 track_id = int(agent['track_id'])
@@ -305,7 +305,7 @@ class ReplayEngine:
             # Fallback: use agent index as track_id if track_id not available
             agent_start = frame_data['agent_index_interval'][0]
             for i, agent in enumerate(agents):
-                if not self._running:
+                if not self._running_event.is_set():
                     break
                 
                 track_id = agent_start + i

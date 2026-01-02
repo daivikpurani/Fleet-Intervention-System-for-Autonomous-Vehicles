@@ -6,6 +6,7 @@ Captures exactly N events and writes them to a JSONL file.
 
 import json
 import sys
+import time
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 
@@ -30,7 +31,6 @@ def capture_events(output_file: str, num_events: int = 30, from_beginning: bool 
         )
         
         # Wait a moment for consumer to be ready
-        import time
         time.sleep(0.5)
         
         print(f"Consumer ready. Waiting for events...")
