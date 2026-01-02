@@ -1,0 +1,27 @@
+{
+  "dataset_id": "sample.zarr",
+  "golden_scene_ids": [0, 1, 2],
+  "generated_at": "2024-01-15T10:23:45.123456",
+  "thresholds": {
+    "sudden_deceleration": {
+      "warning": -3.5,
+      "critical": -5.2
+    },
+    "centroid_jump": {
+      "warning": 4.8,
+      "critical": 9.5
+    },
+    "velocity_spike": {
+      "warning": 11.2,
+      "critical": 22.5
+    },
+    "label_instability": {
+      "warning": 0.28,
+      "critical": 0.52
+    },
+    "dropout_proxy": {
+      "agent_count_drop_warning": 6
+    }
+  }
+}
+

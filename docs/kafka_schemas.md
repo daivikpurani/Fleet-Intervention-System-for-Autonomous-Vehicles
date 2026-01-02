@@ -42,6 +42,11 @@
 - Out-of-order anomalies from the same vehicle are not expected in normal operation
 - Out-of-order tolerance will be implemented in later phases using event timestamps
 
+**Threshold Calibration**: 
+- Anomaly detection thresholds are calibrated from golden scenes using robust statistics (percentiles)
+- Thresholds are computed from the sample.zarr dataset and stored in `services/anomaly-service/config/thresholds.json`
+- Each `AnomalyEvent` includes the threshold values used in detection for explainability
+
 ### operator_actions
 
 **Purpose**: Stream of operator actions (e.g., dispatch, acknowledge, escalate) from the operator service. Each event represents a single action taken by an operator.

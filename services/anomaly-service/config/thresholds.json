@@ -1,0 +1,30 @@
+{
+  "dataset_id": "sample.zarr",
+  "golden_scene_ids": [
+    0,
+    1,
+    2
+  ],
+  "generated_at": "2026-01-02T06:58:46.159267",
+  "thresholds": {
+    "sudden_deceleration": {
+      "warning": -4.425004404147406,
+      "critical": -20.67815355064566
+    },
+    "centroid_jump": {
+      "warning": 1.6477732692092548,
+      "critical": 2.949660900870242
+    },
+    "velocity_spike": {
+      "warning": 1.9419890065562153,
+      "critical": 13.292802171887901
+    },
+    "label_instability": {
+      "warning": 0.0,
+      "critical": 0.013020970106127048
+    },
+    "dropout_proxy": {
+      "agent_count_drop_warning": 10
+    }
+  }
+}
