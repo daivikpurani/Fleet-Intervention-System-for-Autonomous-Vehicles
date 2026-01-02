@@ -5,7 +5,16 @@ Thin wrapper for publishing RawTelemetryEvent messages to the raw_telemetry topi
 
 import json
 import logging
+import sys
+from pathlib import Path
 from typing import Optional
+
+# Ensure workspace root is in path for schemas import
+# This makes the import work regardless of where the service is run from
+# Path: services/replay-service/kafka_producer.py -> up 2 levels -> workspace root
+_workspace_root = Path(__file__).resolve().parent.parent.parent
+if str(_workspace_root) not in sys.path:
+    sys.path.insert(0, str(_workspace_root))
 
 from services.schemas.events import RawTelemetryEvent
 

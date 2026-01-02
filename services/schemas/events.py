@@ -5,6 +5,7 @@ All models include event_time, processing_time, and appropriate identifiers.
 """
 
 from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -17,6 +18,7 @@ class RawTelemetryEvent(BaseModel):
     Partition key: vehicle_id
     """
 
+    # Envelope fields
     event_id: UUID = Field(..., description="Unique identifier for this event")
     event_time: datetime = Field(..., description="Timestamp when the event occurred")
     processing_time: datetime = Field(
@@ -25,6 +27,17 @@ class RawTelemetryEvent(BaseModel):
     vehicle_id: str = Field(..., description="Identifier for the vehicle")
     scene_id: str = Field(..., description="Identifier for the scene")
     frame_index: int = Field(..., description="Frame index within the scene")
+    
+    # Vehicle identity fields
+    is_ego: bool = Field(..., description="Whether this is the ego vehicle")
+    track_id: Optional[int] = Field(None, description="Track ID for the vehicle (None for ego)")
+    
+    # Telemetry fields (dataset-grounded, keep naming)
+    centroid: dict = Field(..., description="Vehicle position (centroid) with keys {x, y, z}")
+    velocity: dict = Field(..., description="Vehicle velocity with keys {vx, vy}")
+    speed: float = Field(..., description="Vehicle speed in m/s")
+    yaw: Optional[float] = Field(None, description="Vehicle orientation in radians")
+    label_probabilities: Optional[List[float]] = Field(None, description="Classification probabilities")
 
 
 class AnomalyEvent(BaseModel):

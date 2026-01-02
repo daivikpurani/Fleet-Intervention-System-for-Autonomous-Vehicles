@@ -1,13 +1,7 @@
-"""Configuration settings for replay service.
-
-TODO: Implement settings for:
-- Kafka broker configuration
-- Dataset paths
-- Replay rate configuration
-"""
+"""Configuration settings for replay service."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -23,5 +17,7 @@ class KafkaConfig:
 class ReplayConfig:
     """Replay service configuration."""
 
-    kafka: KafkaConfig = KafkaConfig()
+    kafka: KafkaConfig = field(default_factory=KafkaConfig)
+    dataset_path: str = os.getenv("L5KIT_DATASET_PATH", "dataset/sample.zarr")
+    replay_rate_hz: float = float(os.getenv("REPLAY_RATE_HZ", "10.0"))
 
