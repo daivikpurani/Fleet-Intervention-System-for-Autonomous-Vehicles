@@ -1,5 +1,6 @@
-"""Severity mapping for anomalies.
+"""Severity classification for anomalies."""
 
-TODO: Implement severity classification (WARNING, CRITICAL, etc.).
-"""
-
+# Severity levels
+INFO = "INFO"
+WARNING = "WARNING"
+CRITICAL = "CRITICAL"

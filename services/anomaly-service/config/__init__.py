@@ -1,13 +1,10 @@
-"""Configuration settings for anomaly service.
-
-TODO: Implement settings for:
-- Kafka consumer/producer configuration
-- Feature extraction parameters
-- Anomaly detection thresholds
-"""
+"""Configuration settings for anomaly service."""
 
 import os
 from dataclasses import dataclass
+from typing import Dict
+
+from .thresholds import load_thresholds
 
 
 @dataclass
@@ -33,6 +30,16 @@ class KafkaProducerConfig:
 class AnomalyConfig:
     """Anomaly service configuration."""
 
-    kafka_consumer: KafkaConsumerConfig = KafkaConsumerConfig()
-    kafka_producer: KafkaProducerConfig = KafkaProducerConfig()
+    kafka_consumer: KafkaConsumerConfig = None
+    kafka_producer: KafkaProducerConfig = None
+    thresholds: Dict = None
 
+    def __post_init__(self):
+        """Load thresholds after initialization."""
+        if self.kafka_consumer is None:
+            self.kafka_consumer = KafkaConsumerConfig()
+        if self.kafka_producer is None:
+            self.kafka_producer = KafkaProducerConfig()
+        if self.thresholds is None:
+            threshold_data = load_thresholds()
+            self.thresholds = threshold_data.get("thresholds", {})
