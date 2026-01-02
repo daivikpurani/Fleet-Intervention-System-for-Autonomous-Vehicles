@@ -1,30 +1,30 @@
-"""Kafka producer wrapper for replay service.
+"""Kafka producer for operator_actions topic.
 
-Thin wrapper for publishing RawTelemetryEvent messages to the raw_telemetry topic.
+Thin wrapper for publishing OperatorActionEvent messages to the operator_actions topic.
 """
 
 import json
 import logging
 from typing import Optional
 
-from services.schemas.events import RawTelemetryEvent
+from services.schemas.events import OperatorActionEvent
 
-from .config import ReplayConfig
+from .config import OperatorConfig
 
 logger = logging.getLogger(__name__)
 
-# TODO: Implement event_id-based deduplication here
-# This will prevent duplicate events from being published if the producer retries
+# TODO: Implement action_id-based deduplication here
+# This will prevent duplicate actions from being published if the producer retries
 
 
 class KafkaProducer:
-    """Thin Kafka producer wrapper for raw_telemetry topic."""
+    """Thin Kafka producer wrapper for operator_actions topic."""
 
-    def __init__(self, config: ReplayConfig):
+    def __init__(self, config: OperatorConfig):
         """Initialize producer with configuration.
 
         Args:
-            config: Replay service configuration
+            config: Operator service configuration
         """
         self.config = config
         self._producer: Optional[object] = None
@@ -44,7 +44,7 @@ class KafkaProducer:
             from kafka import KafkaProducer as _KafkaProducer
 
             self._producer = _KafkaProducer(
-                bootstrap_servers=self.config.kafka.bootstrap_servers,
+                bootstrap_servers=self.config.kafka_producer.bootstrap_servers,
                 key_serializer=lambda k: k.encode("utf-8") if k else None,
                 value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
             )
@@ -57,11 +57,11 @@ class KafkaProducer:
             self._initialized = True  # Mark as attempted to avoid retry loops
             return False
 
-    def produce(self, event: RawTelemetryEvent) -> None:
-        """Publish a raw telemetry event to Kafka.
+    def produce(self, event: OperatorActionEvent) -> None:
+        """Publish an operator action event to Kafka.
 
         Args:
-            event: RawTelemetryEvent to publish
+            event: OperatorActionEvent to publish
 
         This is a safe no-op if Kafka is unavailable.
         """
@@ -70,15 +70,15 @@ class KafkaProducer:
             return
 
         try:
-            # Partition key: vehicle_id
+            # Partition key: action_id
             self._producer.send(
-                topic="raw_telemetry",
-                key=event.vehicle_id,
+                topic="operator_actions",
+                key=str(event.action_id),
                 value=event.model_dump(),
             )
-            logger.debug(f"Published event {event.event_id} for vehicle {event.vehicle_id}")
+            logger.debug(f"Published action {event.action_id} for vehicle {event.vehicle_id}")
         except Exception as e:
-            logger.warning(f"Failed to publish event {event.event_id}: {e}")
+            logger.warning(f"Failed to publish action {event.action_id}: {e}")
             # Safe no-op: do not raise, allow processing to continue
 
     def flush(self) -> None:

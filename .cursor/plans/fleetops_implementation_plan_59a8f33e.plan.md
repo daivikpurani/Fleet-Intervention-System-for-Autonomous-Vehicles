@@ -1179,4 +1179,3 @@ After each phase:
 Final system verification:
 
 - [ ] Demo script runs end-to-end
-- [ ] All 3 golden scenes replay
