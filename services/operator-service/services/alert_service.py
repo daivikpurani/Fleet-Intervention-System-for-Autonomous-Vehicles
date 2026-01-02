@@ -1,5 +1,6 @@
 """Alert service for processing anomaly events and managing alerts."""
 
+import json
 import logging
 from uuid import UUID
 
@@ -38,7 +39,7 @@ class AlertService:
         if existing_alert:
             # Update existing alert
             existing_alert.last_seen_event_time = event.event_time
-            existing_alert.anomaly_payload = event.model_dump()
+            existing_alert.anomaly_payload = json.loads(event.model_dump_json())
             db.commit()
             db.refresh(existing_alert)
             logger.debug(
@@ -55,7 +56,7 @@ class AlertService:
             rule_name=event.rule_name,
             severity=event.severity,
             status=AlertStatus.OPEN,
-            anomaly_payload=event.model_dump(),
+            anomaly_payload=json.loads(event.model_dump_json()),
             first_seen_event_time=event.event_time,
             last_seen_event_time=event.event_time,
         )
