@@ -1,15 +1,15 @@
-"""Kafka consumer for anomalies topic.
+"""Kafka consumer for anomalies and raw_telemetry topics.
 
-Thin wrapper for consuming AnomalyEvent messages from the anomalies topic.
+Thin wrapper for consuming AnomalyEvent and RawTelemetryEvent messages.
 """
 
 import json
 import logging
 from collections import deque
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Union
 from uuid import UUID
 
-from services.schemas.events import AnomalyEvent
+from services.schemas.events import AnomalyEvent, RawTelemetryEvent
 
 from .config import OperatorConfig
 
@@ -117,4 +117,85 @@ class KafkaConsumer:
                 self._consumer.close()
             except Exception as e:
                 logger.warning(f"Failed to close consumer: {e}")
+
+
+class TelemetryConsumer:
+    """Kafka consumer for raw_telemetry topic."""
+
+    def __init__(self, config: OperatorConfig):
+        """Initialize consumer with configuration.
+
+        Args:
+            config: Operator service configuration
+        """
+        self.config = config
+        self._consumer: Optional[object] = None
+        self._initialized = False
+
+    def _ensure_initialized(self) -> bool:
+        """Initialize Kafka consumer if not already initialized.
+
+        Returns:
+            True if initialized successfully, False otherwise
+        """
+        if self._initialized:
+            return self._consumer is not None
+
+        try:
+            # Lazy import to avoid dependency if Kafka is not available
+            from kafka import KafkaConsumer as _KafkaConsumer
+
+            self._consumer = _KafkaConsumer(
+                "raw_telemetry",
+                bootstrap_servers=self.config.kafka_consumer.bootstrap_servers,
+                group_id=f"{self.config.kafka_consumer.group_id}_telemetry",
+                key_deserializer=lambda k: k.decode("utf-8") if k else None,
+                value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+                auto_offset_reset="latest",  # Only consume new telemetry
+                enable_auto_commit=True,
+            )
+            self._initialized = True
+            logger.info("Telemetry Kafka consumer initialized")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to initialize telemetry Kafka consumer: {e}")
+            self._consumer = None
+            self._initialized = True  # Mark as attempted to avoid retry loops
+            return False
+
+    def consume(self) -> Iterator[RawTelemetryEvent]:
+        """Consume messages from raw_telemetry topic.
+
+        Yields:
+            RawTelemetryEvent instances
+
+        This is a safe no-op if Kafka is unavailable (yields nothing).
+        """
+        if not self._ensure_initialized():
+            logger.warning("Telemetry Kafka consumer not available, no messages will be consumed")
+            return
+
+        try:
+            for message in self._consumer:
+                try:
+                    event = RawTelemetryEvent(**message.value)
+                    logger.debug(f"Consumed telemetry for vehicle {event.vehicle_id}")
+                    yield event
+                except Exception as e:
+                    logger.warning(f"Failed to parse telemetry message: {e}")
+                    # Continue processing other messages
+        except Exception as e:
+            logger.warning(f"Error consuming telemetry messages: {e}")
+            # Safe no-op: yield nothing
+
+    def close(self) -> None:
+        """Close the consumer.
+
+        Safe no-op if consumer is not initialized.
+        """
+        if self._consumer:
+            try:
+                self._consumer.close()
+            except Exception as e:
+                logger.warning(f"Failed to close telemetry consumer: {e}")
 

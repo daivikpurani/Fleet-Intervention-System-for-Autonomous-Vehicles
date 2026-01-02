@@ -6,6 +6,7 @@ from typing import Any, Dict
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    Float,
     Integer,
     JSON,
     Column,
@@ -125,6 +126,8 @@ class VehicleState(Base):
     vehicle_id = Column(Text, primary_key=True)
     state = Column(SQLEnum(VehicleStateEnum), nullable=False, default=VehicleStateEnum.NORMAL)
     assigned_operator = Column(Text, nullable=True)
+    last_position_x = Column(Float, nullable=True, description="Last known X position in meters")
+    last_position_y = Column(Float, nullable=True, description="Last known Y position in meters")
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )

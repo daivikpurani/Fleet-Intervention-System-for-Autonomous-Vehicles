@@ -64,6 +64,8 @@ def get_vehicles(
                 vehicle_id=vehicle_state.vehicle_id,
                 state=vehicle_state.state,
                 assigned_operator=vehicle_state.assigned_operator,
+                last_position_x=vehicle_state.last_position_x,
+                last_position_y=vehicle_state.last_position_y,
                 updated_at=vehicle_state.updated_at,
                 open_alerts_count=open_alerts_count,
             )
@@ -105,6 +107,8 @@ def get_vehicle(
         vehicle_id=vehicle_state.vehicle_id,
         state=vehicle_state.state,
         assigned_operator=vehicle_state.assigned_operator,
+        last_position_x=vehicle_state.last_position_x,
+        last_position_y=vehicle_state.last_position_y,
         updated_at=vehicle_state.updated_at,
         open_alerts_count=open_alerts_count,
     )
@@ -160,6 +164,8 @@ async def assign_operator(
             vehicle_id=vehicle_state.vehicle_id,
             state=vehicle_state.state,
             assigned_operator=vehicle_state.assigned_operator,
+            last_position_x=vehicle_state.last_position_x,
+            last_position_y=vehicle_state.last_position_y,
             updated_at=vehicle_state.updated_at,
             open_alerts_count=open_alerts_count,
         )

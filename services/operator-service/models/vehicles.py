@@ -15,6 +15,8 @@ class VehicleResponse(BaseModel):
     vehicle_id: str
     state: VehicleStateEnum
     assigned_operator: Optional[str]
+    last_position_x: Optional[float] = Field(None, description="Last known X position in meters")
+    last_position_y: Optional[float] = Field(None, description="Last known Y position in meters")
     updated_at: datetime
     open_alerts_count: int = Field(default=0, description="Number of OPEN alerts for this vehicle")
 

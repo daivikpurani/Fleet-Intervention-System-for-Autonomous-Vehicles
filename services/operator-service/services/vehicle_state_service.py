@@ -94,3 +94,46 @@ class VehicleStateService:
         db.refresh(vehicle_state)
         return vehicle_state
 
+    @staticmethod
+    def update_position(
+        vehicle_id: str,
+        position_x: float,
+        position_y: float,
+        db: Session,
+    ) -> VehicleState:
+        """Update vehicle position from telemetry.
+
+        Args:
+            vehicle_id: Vehicle identifier
+            position_x: X position in meters
+            position_y: Y position in meters
+            db: Database session
+
+        Returns:
+            Updated VehicleState record
+        """
+        # Get or create vehicle state
+        vehicle_state = db.query(VehicleState).filter(
+            VehicleState.vehicle_id == vehicle_id
+        ).first()
+
+        if vehicle_state is None:
+            # Compute state based on existing alerts and actions
+            computed_state = VehicleStateService.compute_state(vehicle_id, db)
+            vehicle_state = VehicleState(
+                vehicle_id=vehicle_id,
+                state=computed_state,
+                last_position_x=position_x,
+                last_position_y=position_y,
+            )
+            db.add(vehicle_state)
+        else:
+            vehicle_state.last_position_x = position_x
+            vehicle_state.last_position_y = position_y
+            # Also update state in case alerts changed
+            vehicle_state.state = VehicleStateService.compute_state(vehicle_id, db)
+
+        db.commit()
+        db.refresh(vehicle_state)
+        return vehicle_state
+

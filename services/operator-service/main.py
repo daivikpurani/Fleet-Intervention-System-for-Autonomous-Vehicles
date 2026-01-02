@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from .config import OperatorConfig
 from .db.models import Base, Alert, AlertStatus
 from .db import session as db_session
-from .kafka_consumer import KafkaConsumer
+from .kafka_consumer import KafkaConsumer, TelemetryConsumer
 from .services.alert_service import AlertService
 from .services.vehicle_state_service import VehicleStateService
 from .websocket.handler import websocket_manager
@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 # Global config
 config = OperatorConfig()
 
-# Background task handle
+# Background task handles
 _kafka_task: asyncio.Task | None = None
+_telemetry_task: asyncio.Task | None = None
 _executor: ThreadPoolExecutor | None = None
 
 
@@ -73,6 +74,8 @@ def _process_kafka_event(event) -> None:
             vehicle_id=vehicle_state.vehicle_id,
             state=vehicle_state.state,
             assigned_operator=vehicle_state.assigned_operator,
+            last_position_x=vehicle_state.last_position_x,
+            last_position_y=vehicle_state.last_position_y,
             updated_at=vehicle_state.updated_at,
             open_alerts_count=open_alerts_count,
         )
@@ -85,6 +88,56 @@ def _process_kafka_event(event) -> None:
 
     except Exception as e:
         logger.error(f"Error processing anomaly event: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+def _process_telemetry_event(event) -> None:
+    """Process a single telemetry event (runs in thread)."""
+    # Create a new database session for each message
+    if db_session.SessionLocal is None:
+        logger.error("Database not initialized. Cannot process telemetry events.")
+        return
+    
+    db = db_session.SessionLocal()
+    try:
+        # Update vehicle position
+        centroid = event.centroid
+        position_x = centroid.get('x')
+        position_y = centroid.get('y')
+        
+        if position_x is not None and position_y is not None:
+            vehicle_state = VehicleStateService.update_position(
+                event.vehicle_id,
+                float(position_x),
+                float(position_y),
+                db
+            )
+            
+            # Broadcast vehicle update with position
+            from .models.vehicles import VehicleResponse
+            open_alerts_count = db.query(Alert).filter(
+                Alert.vehicle_id == event.vehicle_id,
+                Alert.status == AlertStatus.OPEN
+            ).count()
+            vehicle_response = VehicleResponse(
+                vehicle_id=vehicle_state.vehicle_id,
+                state=vehicle_state.state,
+                assigned_operator=vehicle_state.assigned_operator,
+                last_position_x=vehicle_state.last_position_x,
+                last_position_y=vehicle_state.last_position_y,
+                updated_at=vehicle_state.updated_at,
+                open_alerts_count=open_alerts_count,
+            )
+            
+            global _event_loop
+            if _event_loop and _event_loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    websocket_manager.broadcast("vehicle_updated", vehicle_response.model_dump()),
+                    _event_loop
+                )
+    except Exception as e:
+        logger.error(f"Error processing telemetry event: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -104,17 +157,55 @@ def _run_kafka_consumer() -> None:
         consumer.close()
 
 
+def _run_telemetry_consumer() -> None:
+    """Run telemetry consumer in thread (blocking)."""
+    logger.info("Starting telemetry consumer in background thread")
+    consumer = TelemetryConsumer(config)
+
+    try:
+        for event in consumer.consume():
+            # Process event
+            _process_telemetry_event(event)
+    except Exception as e:
+        logger.error(f"Fatal error in telemetry consumer: {e}", exc_info=True)
+    finally:
+        consumer.close()
+
+
 async def kafka_consumer_task() -> None:
     """Background task wrapper for Kafka consumer (runs consumer in thread)."""
     global _executor, _event_loop
-    _event_loop = asyncio.get_event_loop()
-    _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="kafka-consumer")
+    if _event_loop is None:
+        _event_loop = asyncio.get_event_loop()
+    
+    # Executor should be initialized before tasks are created
+    if _executor is None:
+        logger.error("ThreadPoolExecutor not initialized. Cannot run Kafka consumer.")
+        return
     
     try:
         # Run blocking Kafka consumer in thread pool
         await asyncio.get_event_loop().run_in_executor(_executor, _run_kafka_consumer)
     except Exception as e:
         logger.error(f"Kafka consumer task error: {e}", exc_info=True)
+
+
+async def telemetry_consumer_task() -> None:
+    """Background task wrapper for telemetry consumer (runs consumer in thread)."""
+    global _executor, _event_loop
+    if _event_loop is None:
+        _event_loop = asyncio.get_event_loop()
+    
+    # Executor should be initialized before tasks are created
+    if _executor is None:
+        logger.error("ThreadPoolExecutor not initialized. Cannot run telemetry consumer.")
+        return
+    
+    try:
+        # Run blocking telemetry consumer in thread pool
+        await asyncio.get_event_loop().run_in_executor(_executor, _run_telemetry_consumer)
+    except Exception as e:
+        logger.error(f"Telemetry consumer task error: {e}", exc_info=True)
 
 
 @asynccontextmanager
@@ -128,18 +219,32 @@ async def lifespan(app: FastAPI):
     alerts.set_config(config)
     vehicles.set_config(config)
 
-    # Start Kafka consumer background task
-    global _kafka_task
+    # Initialize shared thread pool executor for consumer tasks
+    # Create with 2 workers: one for Kafka consumer, one for telemetry consumer
+    global _executor, _event_loop
+    _event_loop = asyncio.get_event_loop()
+    _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="kafka-consumer")
+
+    # Start Kafka consumer background tasks
+    global _kafka_task, _telemetry_task
     _kafka_task = asyncio.create_task(kafka_consumer_task())
+    _telemetry_task = asyncio.create_task(telemetry_consumer_task())
 
     yield
 
     # Shutdown
     logger.info("Shutting down operator service")
+    global _kafka_task, _telemetry_task
     if _kafka_task:
         _kafka_task.cancel()
         try:
             await _kafka_task
+        except asyncio.CancelledError:
+            pass
+    if _telemetry_task:
+        _telemetry_task.cancel()
+        try:
+            await _telemetry_task
         except asyncio.CancelledError:
             pass
     

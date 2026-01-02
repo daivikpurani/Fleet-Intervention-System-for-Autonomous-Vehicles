@@ -1,4 +1,12 @@
-// TODO: Implement React app entry point
-// TODO: Set up React Router if needed
-// TODO: Initialize MapboxGL token
+// React app entry point
 
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
