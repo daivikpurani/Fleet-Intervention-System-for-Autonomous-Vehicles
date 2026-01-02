@@ -14,6 +14,8 @@ help:
 	@echo "  health  - Check container health status"
 
 up:
+	@echo "Checking Docker daemon..."
+	@docker info > /dev/null 2>&1 || (echo "Error: Docker daemon is not running. Please start Docker Desktop and try again." && exit 1)
 	@echo "Starting infrastructure..."
 	docker-compose up -d
 	@echo "Waiting for services to be healthy..."
