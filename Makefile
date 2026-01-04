@@ -87,7 +87,7 @@ quick-start:
 	@./scripts/quick_start.sh
 
 demo:
-	@./scripts/trigger_demo.sh
+	@./scripts/run_demo.sh
 
 test:
 	@echo "Running all tests..."

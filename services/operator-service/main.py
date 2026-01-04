@@ -73,10 +73,14 @@ def _process_kafka_event(event) -> None:
         ).count()
         vehicle_response = VehicleResponse(
             vehicle_id=vehicle_state.vehicle_id,
+            vehicle_display_id=vehicle_state.vehicle_display_id,
+            vehicle_type=vehicle_state.vehicle_type,
             state=vehicle_state.state,
             assigned_operator=vehicle_state.assigned_operator,
             last_position_x=vehicle_state.last_position_x,
             last_position_y=vehicle_state.last_position_y,
+            last_yaw=vehicle_state.last_yaw,
+            last_speed=vehicle_state.last_speed,
             updated_at=vehicle_state.updated_at,
             open_alerts_count=open_alerts_count,
         )
@@ -112,7 +116,12 @@ def _process_telemetry_event(event) -> None:
                 event.vehicle_id,
                 float(position_x),
                 float(position_y),
-                db
+                db,
+                vehicle_display_id=event.vehicle_display_id,
+                vehicle_type=event.vehicle_type,
+                yaw=event.yaw,
+                speed=event.speed,
+                scene_id=event.scene_id,
             )
             
             # Broadcast vehicle update with position
@@ -123,10 +132,14 @@ def _process_telemetry_event(event) -> None:
             ).count()
             vehicle_response = VehicleResponse(
                 vehicle_id=vehicle_state.vehicle_id,
+                vehicle_display_id=vehicle_state.vehicle_display_id,
+                vehicle_type=vehicle_state.vehicle_type,
                 state=vehicle_state.state,
                 assigned_operator=vehicle_state.assigned_operator,
                 last_position_x=vehicle_state.last_position_x,
                 last_position_y=vehicle_state.last_position_y,
+                last_yaw=vehicle_state.last_yaw,
+                last_speed=vehicle_state.last_speed,
                 updated_at=vehicle_state.updated_at,
                 open_alerts_count=open_alerts_count,
             )

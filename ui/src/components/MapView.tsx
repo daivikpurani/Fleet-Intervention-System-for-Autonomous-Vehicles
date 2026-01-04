@@ -1,4 +1,4 @@
-// MapboxGL map component with vehicle visualization
+// MapboxGL map component with enhanced vehicle visualization
 
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
@@ -10,7 +10,6 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
 // Coordinate transformation constants
 // This is a visualization mapping, not real geography
-// We use a small scale to keep coordinates visually stable
 const COORD_SCALE = 1e-5; // Scale factor for x,y to lng,lat conversion
 
 interface MapViewProps {
@@ -39,12 +38,12 @@ export function MapView({
   useEffect(() => {
     if (initialCenter) return;
 
-    const egoVehicle = vehicles.find((v) => v.vehicle_id.includes("ego"));
+    const egoVehicle = vehicles.find(
+      (v) => v.vehicle_type === "Autonomous Vehicle" || v.vehicle_id.includes("ego")
+    );
     const centerVehicle = egoVehicle || vehicles[0];
 
     if (centerVehicle != null && centerVehicle.last_position_x != null && centerVehicle.last_position_y != null) {
-      // Use first vehicle position as map center
-      // Apply affine transform: lng = lng0 + x * scale, lat = lat0 + y * scale
       const lng0 = -122.4194; // San Francisco as base (arbitrary, just for visualization)
       const lat0 = 37.7749;
       const lng = lng0 + centerVehicle.last_position_x * COORD_SCALE;
@@ -116,22 +115,30 @@ export function MapView({
       const lat = lat0 + vehicle.last_position_y * COORD_SCALE;
 
       // Get color based on state
-      const getColor = (state: VehicleState): string => {
+      const getStateColor = (state: VehicleState): string => {
         switch (state) {
           case "NORMAL":
-            return "#888";
+            return theme.colors.success;
           case "ALERTING":
-            return "#ff6b35";
+            return theme.colors.warning;
           case "UNDER_INTERVENTION":
-            return "#d32f2f";
+            return theme.colors.critical;
           default:
-            return "#888";
+            return theme.colors.textMuted;
         }
       };
 
+      const isEgo = vehicle.vehicle_type === "Autonomous Vehicle" || vehicle.vehicle_id.includes("ego");
       const isSelected = vehicle.vehicle_id === selectedVehicleId;
-      const radius = isSelected ? 12 : 8;
-      const color = getColor(vehicle.state);
+      const baseSize = isEgo ? 16 : 10;
+      const size = isSelected ? baseSize + 4 : baseSize;
+      const color = getStateColor(vehicle.state);
+      
+      // Convert yaw (radians) to degrees for rotation
+      // Yaw is typically counter-clockwise from east, we need clockwise from north
+      const rotationDeg = vehicle.last_yaw != null 
+        ? (90 - (vehicle.last_yaw * 180 / Math.PI)) % 360 
+        : 0;
 
       const existingMarker = markersRef.current.get(vehicle.vehicle_id);
 
@@ -141,29 +148,13 @@ export function MapView({
         // Update marker element style
         const el = existingMarker.getElement();
         if (el) {
-          el.style.width = `${radius * 2}px`;
-          el.style.height = `${radius * 2}px`;
-          el.style.backgroundColor = color;
-          el.style.borderColor = isSelected
-            ? theme.mode === "dark"
-              ? "#fff"
-              : "#000"
-            : color;
-          el.style.borderWidth = isSelected ? "2px" : "1px";
+          updateMarkerElement(el, vehicle, isEgo, isSelected, size, color, rotationDeg);
         }
       } else {
         // Create new marker
-        const el = document.createElement("div");
-        el.className = "vehicle-marker";
-        el.style.width = `${radius * 2}px`;
-        el.style.height = `${radius * 2}px`;
-        el.style.borderRadius = "50%";
-        el.style.backgroundColor = color;
-        el.style.border = `2px solid ${isSelected ? (theme.mode === "dark" ? "#fff" : "#000") : color}`;
-        el.style.cursor = "pointer";
-        el.style.boxShadow = theme.mode === "dark" ? "0 2px 4px rgba(255,255,255,0.3)" : "0 2px 4px rgba(0,0,0,0.3)";
+        const el = createMarkerElement(vehicle, isEgo, isSelected, size, color, rotationDeg);
 
-        const marker = new mapboxgl.Marker(el)
+        const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([lng, lat])
           .addTo(map);
 
@@ -174,20 +165,144 @@ export function MapView({
         markersRef.current.set(vehicle.vehicle_id, marker);
       }
     });
-  }, [vehicles, selectedVehicleId, onVehicleClick, initialCenter, theme.mode]);
+  }, [vehicles, selectedVehicleId, onVehicleClick, initialCenter, theme]);
+
+  // Helper to create marker element
+  const createMarkerElement = (
+    vehicle: Vehicle,
+    isEgo: boolean,
+    isSelected: boolean,
+    size: number,
+    color: string,
+    rotationDeg: number
+  ): HTMLDivElement => {
+    const el = document.createElement("div");
+    el.className = "vehicle-marker";
+    updateMarkerElement(el, vehicle, isEgo, isSelected, size, color, rotationDeg);
+    return el;
+  };
+
+  // Helper to update marker element styles
+  const updateMarkerElement = (
+    el: HTMLElement,
+    vehicle: Vehicle,
+    isEgo: boolean,
+    isSelected: boolean,
+    size: number,
+    color: string,
+    rotationDeg: number
+  ) => {
+    const showHeading = vehicle.last_yaw != null;
+    
+    if (isEgo) {
+      // Ego vehicle: triangle/arrow shape with heading
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      el.style.borderRadius = "0";
+      el.style.backgroundColor = "transparent";
+      el.style.border = "none";
+      el.style.cursor = "pointer";
+      el.style.transform = showHeading ? `rotate(${rotationDeg}deg)` : "";
+      el.style.transition = "transform 0.3s ease-out";
+      
+      // Create triangle using borders (pointing up by default)
+      el.style.borderLeft = `${size / 2}px solid transparent`;
+      el.style.borderRight = `${size / 2}px solid transparent`;
+      el.style.borderBottom = `${size}px solid ${color}`;
+      
+      if (isSelected) {
+        el.style.filter = `drop-shadow(0 0 4px ${color}) drop-shadow(0 0 8px ${color})`;
+      } else {
+        el.style.filter = `drop-shadow(0 2px 3px rgba(0,0,0,0.3))`;
+      }
+    } else {
+      // Tracked vehicle: circle with optional direction indicator
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      el.style.borderRadius = "50%";
+      el.style.backgroundColor = color;
+      el.style.border = isSelected 
+        ? `2px solid ${theme.mode === "dark" ? "#fff" : "#000"}`
+        : `1px solid ${color}`;
+      el.style.cursor = "pointer";
+      el.style.boxShadow = isSelected 
+        ? `0 0 8px ${color}, 0 0 16px ${color}`
+        : theme.mode === "dark" 
+          ? "0 2px 4px rgba(0,0,0,0.5)"
+          : "0 2px 4px rgba(0,0,0,0.3)";
+      
+      // Reset triangle styles if previously used
+      el.style.borderLeft = "";
+      el.style.borderRight = "";
+      el.style.borderBottom = "";
+      el.style.transform = "";
+      el.style.filter = "";
+    }
+  };
 
   if (!MAPBOX_TOKEN) {
     return (
-      <div style={{ padding: "20px", textAlign: "center", color: theme.colors.text }}>
-        <p>Mapbox token not configured. Set VITE_MAPBOX_TOKEN environment variable.</p>
+      <div 
+        style={{ 
+          padding: "40px", 
+          textAlign: "center", 
+          color: theme.colors.textSecondary,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          backgroundColor: theme.colors.background,
+        }}
+      >
+        <div style={{ fontSize: "32px", marginBottom: "16px" }}>🗺️</div>
+        <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>
+          Map Not Configured
+        </div>
+        <div style={{ fontSize: "12px", color: theme.colors.textMuted, maxWidth: "300px" }}>
+          Set <code style={{ 
+            backgroundColor: theme.colors.surfaceSecondary, 
+            padding: "2px 6px", 
+            borderRadius: "4px",
+            fontFamily: theme.fonts.mono,
+          }}>VITE_MAPBOX_TOKEN</code> environment variable to enable the map view.
+        </div>
       </div>
     );
   }
 
   if (initialCenter === null) {
     return (
-      <div style={{ padding: "20px", textAlign: "center", color: theme.colors.text }}>
-        <p>Loading map...</p>
+      <div 
+        style={{ 
+          padding: "40px", 
+          textAlign: "center", 
+          color: theme.colors.textMuted,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+        }}
+      >
+        <div
+          style={{
+            width: "40px",
+            height: "40px",
+            border: `3px solid ${theme.colors.border}`,
+            borderTopColor: theme.colors.primary,
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+            marginBottom: "16px",
+          }}
+        />
+        <div style={{ fontSize: "13px" }}>Waiting for vehicle telemetry...</div>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }

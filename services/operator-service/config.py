@@ -10,7 +10,7 @@ class DatabaseConfig:
 
     database_url: str = os.getenv(
         "DATABASE_URL",
-        f"postgresql://postgres:postgres@localhost:{os.getenv('POSTGRES_PORT', '5432')}/fleetops",
+        f"postgresql://postgres:postgres@localhost:{os.getenv('POSTGRES_PORT', '5434')}/fleetops",
     )
 
 
@@ -19,7 +19,7 @@ class KafkaConsumerConfig:
     """Kafka consumer configuration."""
 
     bootstrap_servers: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    group_id: str = "operator-service"
+    group_id: str = os.getenv("KAFKA_CONSUMER_GROUP_ID", "operator-service-v2")  # Changed to force fresh start
     # Key deserializer: string (vehicle_id)
     # Value deserializer: JSON (AnomalyEvent)
 

@@ -25,12 +25,15 @@ class RawTelemetryEvent(BaseModel):
         ..., description="Timestamp when the event was processed/published"
     )
     vehicle_id: str = Field(..., description="Identifier for the vehicle")
+    vehicle_display_id: Optional[str] = Field(None, description="Human-readable vehicle ID (e.g., AV-SF01)")
     scene_id: str = Field(..., description="Identifier for the scene")
+    scene_display_id: Optional[str] = Field(None, description="Human-readable scene ID (e.g., RUN-0104-A)")
     frame_index: int = Field(..., description="Frame index within the scene")
     
     # Vehicle identity fields
     is_ego: bool = Field(..., description="Whether this is the ego vehicle")
     track_id: Optional[int] = Field(None, description="Track ID for the vehicle (None for ego)")
+    vehicle_type: Optional[str] = Field(None, description="Vehicle type label (Autonomous Vehicle, Tracked Vehicle)")
     
     # Telemetry fields (dataset-grounded, keep naming)
     centroid: dict = Field(..., description="Vehicle position (centroid) with keys {x, y, z}")
@@ -48,14 +51,18 @@ class AnomalyEvent(BaseModel):
     """
 
     anomaly_id: UUID = Field(..., description="Unique identifier for this anomaly")
+    incident_id: Optional[str] = Field(None, description="Human-readable incident ID (e.g., INC-7K3P2)")
     event_time: datetime = Field(..., description="Timestamp when the anomaly was detected")
     processing_time: datetime = Field(
         ..., description="Timestamp when the event was processed/published"
     )
     vehicle_id: str = Field(..., description="Identifier for the vehicle")
+    vehicle_display_id: Optional[str] = Field(None, description="Human-readable vehicle ID (e.g., AV-SF01)")
     scene_id: str = Field(..., description="Identifier for the scene")
+    scene_display_id: Optional[str] = Field(None, description="Human-readable scene ID (e.g., RUN-0104-A)")
     frame_index: int = Field(..., description="Frame index within the scene")
     rule_name: str = Field(..., description="Name of the rule that triggered this anomaly")
+    rule_display_name: Optional[str] = Field(None, description="Human-readable rule name")
     features: Dict[str, Any] = Field(..., description="Feature values used in detection")
     thresholds: Dict[str, Any] = Field(..., description="Threshold values used in detection")
     severity: Literal["INFO", "WARNING", "CRITICAL"] = Field(

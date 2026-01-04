@@ -211,7 +211,7 @@ class TelemetryConsumer:
                     group_id=f"{self.config.kafka_consumer.group_id}_telemetry",
                     key_deserializer=lambda k: k.decode("utf-8") if k else None,
                     value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-                    auto_offset_reset="latest",  # Only consume new telemetry
+                    auto_offset_reset="earliest",  # Consume from beginning to catch up on startup
                     enable_auto_commit=True,
                     request_timeout_ms=40000,  # FIXED: Must be > session_timeout_ms
                     session_timeout_ms=10000,

@@ -1,6 +1,6 @@
-// Main App component with three-column layout
+// Main App component with mission control layout
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "./services/api";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useTheme } from "./contexts/ThemeContext";
@@ -9,11 +9,13 @@ import { AlertList } from "./components/AlertList";
 import { VehicleDetail } from "./components/VehicleDetail";
 import { IncidentPanel } from "./components/IncidentPanel";
 import { ActionButtons } from "./components/ActionButtons";
+import { FleetStatusBar } from "./components/FleetStatusBar";
 import type { Vehicle, Alert, WebSocketMessage } from "./types";
 
 function App() {
   const { theme, toggleTheme } = useTheme();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [demoMode, setDemoMode] = useState(false);
@@ -26,7 +28,7 @@ function App() {
 
   // WebSocket connection status
   const { isConnected } = useWebSocket({
-    onMessage: (message: WebSocketMessage) => {
+    onMessage: useCallback((message: WebSocketMessage) => {
       if (message.type === "vehicle_updated") {
         const updatedVehicle = message.data as Vehicle;
         setVehicles((prev) => {
@@ -44,26 +46,46 @@ function App() {
         if (
           demoMode &&
           !demoEgoSelectedRef.current &&
-          updatedVehicle.vehicle_id.includes("ego")
+          (updatedVehicle.vehicle_type === "Autonomous Vehicle" || updatedVehicle.vehicle_id.includes("ego"))
         ) {
           setSelectedVehicleId(updatedVehicle.vehicle_id);
           demoEgoSelectedRef.current = true;
         }
+      } else if (message.type === "alert_created" || message.type === "alert_updated") {
+        const alertData = message.data as Alert;
+        setAlerts((prev) => {
+          const index = prev.findIndex((a) => a.id === alertData.id);
+          if (index >= 0) {
+            const newAlerts = [...prev];
+            newAlerts[index] = alertData;
+            return newAlerts;
+          } else {
+            return [alertData, ...prev];
+          }
+        });
       }
-    },
+    }, [demoMode]),
   });
 
-  // Fetch initial vehicles
+  // Fetch initial data
   useEffect(() => {
-    async function fetchVehicles() {
+    async function fetchData() {
       try {
         setLoading(true);
         setError(null);
-        const fetchedVehicles = await api.getVehicles();
+        
+        const [fetchedVehicles, fetchedAlerts] = await Promise.all([
+          api.getVehicles(),
+          api.getAlerts(),
+        ]);
+        
         setVehicles(fetchedVehicles);
+        setAlerts(fetchedAlerts);
 
         // Set map center from first ego vehicle
-        const egoVehicle = fetchedVehicles.find((v) => v.vehicle_id.includes("ego"));
+        const egoVehicle = fetchedVehicles.find(
+          (v) => v.vehicle_type === "Autonomous Vehicle" || v.vehicle_id.includes("ego")
+        );
         if (egoVehicle && egoVehicle.last_position_x != null && egoVehicle.last_position_y != null) {
           setMapCenter({
             x: egoVehicle.last_position_x,
@@ -71,13 +93,13 @@ function App() {
           });
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch vehicles");
+        setError(err instanceof Error ? err.message : "Failed to fetch data");
       } finally {
         setLoading(false);
       }
     }
 
-    fetchVehicles();
+    fetchData();
   }, []);
 
 
@@ -92,19 +114,17 @@ function App() {
 
   const handleVehicleClick = (vehicleId: string) => {
     setSelectedVehicleId(vehicleId);
-    // Find alerts for this vehicle and select the first one if any
-    // This will be handled by AlertList component
   };
 
   const handleActionComplete = () => {
-    // Refresh vehicles and alerts after action
-    api.getVehicles().then(setVehicles).catch(console.error);
+    // Refresh data after action
+    Promise.all([
+      api.getVehicles().then(setVehicles),
+      api.getAlerts().then(setAlerts),
+    ]).catch(console.error);
   };
 
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === selectedVehicleId) || null;
-
-  // Demo mode: check for CRITICAL alerts on alert list updates
-  // This is handled by AlertList component via the alert click handler
 
   return (
     <div
@@ -114,12 +134,13 @@ function App() {
         height: "100vh",
         backgroundColor: theme.colors.background,
         color: theme.colors.text,
+        fontFamily: theme.fonts.display,
       }}
     >
       {/* Header */}
-      <div
+      <header
         style={{
-          padding: "12px 16px",
+          padding: "10px 20px",
           borderBottom: `1px solid ${theme.colors.border}`,
           display: "flex",
           justifyContent: "space-between",
@@ -127,37 +148,49 @@ function App() {
           backgroundColor: theme.colors.surfaceSecondary,
         }}
       >
-        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: "bold", color: theme.colors.text }}>
-          FleetOps Operator Dashboard
-        </h1>
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <div
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <h1
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              color: isConnected ? theme.colors.success : theme.colors.error,
+              margin: 0,
+              fontSize: "18px",
+              fontWeight: 700,
+              letterSpacing: "-0.5px",
+              color: theme.colors.text,
             }}
           >
-            <span
-              style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                backgroundColor: isConnected ? theme.colors.success : theme.colors.error,
-              }}
-            />
-            {isConnected ? "Connected" : "Disconnected"}
-          </div>
+            FLEETOPS
+            <span style={{ color: theme.colors.primary, marginLeft: "6px" }}>
+              COMMAND
+            </span>
+          </h1>
+          <span
+            style={{
+              fontSize: "11px",
+              padding: "2px 8px",
+              borderRadius: "4px",
+              backgroundColor: theme.colors.primaryMuted,
+              color: theme.colors.primary,
+              fontWeight: 600,
+            }}
+          >
+            SF BAY
+          </span>
+        </div>
+        
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <label
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              fontSize: "14px",
-              color: theme.colors.text,
+              fontSize: "13px",
+              color: theme.colors.textSecondary,
               cursor: "pointer",
+              padding: "6px 12px",
+              borderRadius: "6px",
+              backgroundColor: demoMode ? theme.colors.primaryMuted : "transparent",
+              border: `1px solid ${demoMode ? theme.colors.primary : theme.colors.border}`,
+              transition: "all 0.2s",
             }}
           >
             <input
@@ -166,21 +199,23 @@ function App() {
               onChange={(e) => setDemoMode(e.target.checked)}
               style={{ cursor: "pointer" }}
             />
-            Demo Mode
+            <span style={{ fontWeight: demoMode ? 600 : 400 }}>Demo Mode</span>
           </label>
+          
           <button
             onClick={toggleTheme}
             style={{
               padding: "6px 12px",
               border: `1px solid ${theme.colors.border}`,
-              borderRadius: "4px",
+              borderRadius: "6px",
               backgroundColor: theme.colors.surface,
               color: theme.colors.text,
               cursor: "pointer",
-              fontSize: "12px",
+              fontSize: "13px",
               display: "flex",
               alignItems: "center",
               gap: "6px",
+              transition: "all 0.2s",
             }}
             title={`Switch to ${theme.mode === "light" ? "dark" : "light"} mode`}
           >
@@ -188,14 +223,21 @@ function App() {
             {theme.mode === "light" ? "Dark" : "Light"}
           </button>
         </div>
-      </div>
+      </header>
+
+      {/* Fleet Status Bar */}
+      <FleetStatusBar 
+        vehicles={vehicles} 
+        alerts={alerts} 
+        isConnected={isConnected} 
+      />
 
       {/* Main Content */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Left Column: Alert List */}
         <div
           style={{
-            width: "300px",
+            width: "320px",
             borderRight: `1px solid ${theme.colors.border}`,
             display: "flex",
             flexDirection: "column",
@@ -214,11 +256,24 @@ function App() {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                fontSize: "16px",
+                fontSize: "14px",
                 color: theme.colors.textMuted,
               }}
             >
-              Loading...
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    border: `3px solid ${theme.colors.border}`,
+                    borderTopColor: theme.colors.primary,
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                    margin: "0 auto 16px",
+                  }}
+                />
+                Initializing fleet telemetry...
+              </div>
             </div>
           ) : error ? (
             <div
@@ -228,32 +283,17 @@ function App() {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                fontSize: "16px",
+                fontSize: "14px",
                 color: theme.colors.error,
                 gap: "8px",
+                padding: "20px",
               }}
             >
-              <div>Error: {error}</div>
-              {!isConnected && (
-                <div style={{ fontSize: "14px", color: theme.colors.warning }}>
-                  WebSocket disconnected. Reconnecting...
-                </div>
-              )}
-            </div>
-          ) : !isConnected ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                fontSize: "16px",
-                color: theme.colors.warning,
-                backgroundColor: theme.mode === "dark" ? "#3e2723" : "#fff3e0",
-                padding: "16px",
-              }}
-            >
-              WebSocket disconnected. Live updates paused. Reconnecting...
+              <div style={{ fontSize: "24px" }}>⚠️</div>
+              <div>Connection Error</div>
+              <div style={{ fontSize: "13px", color: theme.colors.textSecondary }}>
+                {error}
+              </div>
             </div>
           ) : (
             <MapView
@@ -268,7 +308,7 @@ function App() {
         {/* Right Column: Vehicle Detail, Incident Panel, Actions */}
         <div
           style={{
-            width: "350px",
+            width: "380px",
             borderLeft: `1px solid ${theme.colors.border}`,
             display: "flex",
             flexDirection: "column",
@@ -277,10 +317,10 @@ function App() {
           }}
         >
           <VehicleDetail vehicle={selectedVehicle} />
-          <div style={{ borderTop: `1px solid ${theme.colors.border}`, marginTop: "16px" }}>
+          <div style={{ borderTop: `1px solid ${theme.colors.border}` }}>
             <IncidentPanel alert={selectedAlert} />
           </div>
-          <div style={{ borderTop: `1px solid ${theme.colors.border}`, marginTop: "16px" }}>
+          <div style={{ borderTop: `1px solid ${theme.colors.border}`, marginTop: "auto" }}>
             <ActionButtons
               alert={selectedAlert}
               vehicle={selectedVehicle}
@@ -289,6 +329,18 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -13,11 +13,15 @@ export type ActionType =
 
 export interface Alert {
   id: string;
+  incident_id: string | null;
   vehicle_id: string;
+  vehicle_display_id: string | null;
   scene_id: string;
+  scene_display_id: string | null;
   frame_index: number;
   anomaly_id: string;
   rule_name: string;
+  rule_display_name: string | null;
   severity: Severity;
   status: AlertStatus;
   anomaly_payload: {
@@ -33,10 +37,14 @@ export interface Alert {
 
 export interface Vehicle {
   vehicle_id: string;
+  vehicle_display_id: string | null;
+  vehicle_type: string | null;
   state: VehicleState;
   assigned_operator: string | null;
   last_position_x: number | null;
   last_position_y: number | null;
+  last_yaw: number | null;
+  last_speed: number | null;
   updated_at: string;
   open_alerts_count: number;
 }

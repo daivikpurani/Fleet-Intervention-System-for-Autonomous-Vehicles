@@ -1,0 +1,32 @@
+{
+  "name": "FleetOps Demo Scenes",
+  "description": "Curated scenes for live demonstrations with guaranteed interesting events",
+  "version": "1.0",
+  "scenes": [
+    {
+      "id": 0,
+      "name": "Urban Intersection",
+      "description": "Dense urban scene with multiple vehicles navigating a busy intersection",
+      "expected_alerts": ["perception_instability", "sudden_deceleration"],
+      "highlights": [
+        "Multiple tracked vehicles",
+        "Ego vehicle interactions",
+        "Typical urban driving conditions"
+      ],
+      "duration_estimate_seconds": 60
+    }
+  ],
+  "demo_config": {
+    "recommended_replay_rate_hz": 1.0,
+    "max_vehicles_display": 15,
+    "alert_highlight_duration_ms": 3000,
+    "auto_select_ego": true,
+    "auto_zoom_to_alerts": true
+  },
+  "notes": [
+    "Scene 0 is always available in the sample.zarr dataset",
+    "Use demo_mode=true when starting replay for best presentation experience",
+    "Alerts typically appear within 10-20 frames of replay start"
+  ]
+}
+

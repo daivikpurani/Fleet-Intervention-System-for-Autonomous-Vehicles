@@ -9,6 +9,11 @@ from datetime import datetime
 from uuid import uuid4
 
 from services.schemas.events import AnomalyEvent, RawTelemetryEvent
+from services.id_generator import (
+    generate_incident_id,
+    generate_vehicle_display_id,
+    generate_scene_display_id,
+)
 
 from .anomalies.detectors import AnomalyDetector
 from .config import AnomalyConfig
@@ -114,14 +119,39 @@ class AnomalyService:
 
         # Emit anomaly events
         for anomaly_result in anomalies:
+            anomaly_id = uuid4()
+            
+            # Generate human-readable IDs
+            incident_id = generate_incident_id(str(anomaly_id))
+            vehicle_display_id = event.vehicle_display_id or generate_vehicle_display_id(
+                event.vehicle_id, event.scene_id
+            )
+            scene_display_id = event.scene_display_id or generate_scene_display_id(
+                event.scene_id, event.event_time
+            )
+            
+            # Create human-readable rule display name
+            rule_display_names = {
+                "sudden_deceleration": "Sudden Deceleration",
+                "perception_instability": "Perception Instability", 
+                "dropout_proxy": "Sensor Dropout",
+            }
+            rule_display_name = rule_display_names.get(
+                anomaly_result.rule_name, anomaly_result.rule_name.replace("_", " ").title()
+            )
+            
             anomaly_event = AnomalyEvent(
-                anomaly_id=uuid4(),
+                anomaly_id=anomaly_id,
+                incident_id=incident_id,
                 event_time=event.event_time,
                 processing_time=datetime.utcnow(),
                 vehicle_id=event.vehicle_id,
+                vehicle_display_id=vehicle_display_id,
                 scene_id=event.scene_id,
+                scene_display_id=scene_display_id,
                 frame_index=event.frame_index,
                 rule_name=anomaly_result.rule_name,
+                rule_display_name=rule_display_name,
                 features=anomaly_result.features,
                 thresholds=anomaly_result.thresholds,
                 severity=anomaly_result.severity,
@@ -129,8 +159,8 @@ class AnomalyService:
 
             self.producer.produce(anomaly_event)
             logger.info(
-                f"Anomaly detected: {anomaly_result.rule_name} "
-                f"for vehicle {event.vehicle_id} at frame {event.frame_index} "
+                f"Anomaly detected: {incident_id} ({rule_display_name}) "
+                f"for vehicle {vehicle_display_id} at frame {event.frame_index} "
                 f"(severity: {anomaly_result.severity})"
             )
 

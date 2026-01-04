@@ -62,10 +62,14 @@ def get_vehicles(
         result.append(
             VehicleResponse(
                 vehicle_id=vehicle_state.vehicle_id,
+                vehicle_display_id=vehicle_state.vehicle_display_id,
+                vehicle_type=vehicle_state.vehicle_type,
                 state=vehicle_state.state,
                 assigned_operator=vehicle_state.assigned_operator,
                 last_position_x=vehicle_state.last_position_x,
                 last_position_y=vehicle_state.last_position_y,
+                last_yaw=vehicle_state.last_yaw,
+                last_speed=vehicle_state.last_speed,
                 updated_at=vehicle_state.updated_at,
                 open_alerts_count=open_alerts_count,
             )
@@ -105,10 +109,14 @@ def get_vehicle(
 
     return VehicleResponse(
         vehicle_id=vehicle_state.vehicle_id,
+        vehicle_display_id=vehicle_state.vehicle_display_id,
+        vehicle_type=vehicle_state.vehicle_type,
         state=vehicle_state.state,
         assigned_operator=vehicle_state.assigned_operator,
         last_position_x=vehicle_state.last_position_x,
         last_position_y=vehicle_state.last_position_y,
+        last_yaw=vehicle_state.last_yaw,
+        last_speed=vehicle_state.last_speed,
         updated_at=vehicle_state.updated_at,
         open_alerts_count=open_alerts_count,
     )
@@ -162,10 +170,14 @@ async def assign_operator(
 
         vehicle_response = VehicleResponse(
             vehicle_id=vehicle_state.vehicle_id,
+            vehicle_display_id=vehicle_state.vehicle_display_id,
+            vehicle_type=vehicle_state.vehicle_type,
             state=vehicle_state.state,
             assigned_operator=vehicle_state.assigned_operator,
             last_position_x=vehicle_state.last_position_x,
             last_position_y=vehicle_state.last_position_y,
+            last_yaw=vehicle_state.last_yaw,
+            last_speed=vehicle_state.last_speed,
             updated_at=vehicle_state.updated_at,
             open_alerts_count=open_alerts_count,
         )
@@ -241,8 +253,14 @@ async def create_vehicle_action(
             ).count()
             vehicle_response = VehicleResponse(
                 vehicle_id=vehicle_state.vehicle_id,
+                vehicle_display_id=vehicle_state.vehicle_display_id,
+                vehicle_type=vehicle_state.vehicle_type,
                 state=vehicle_state.state,
                 assigned_operator=vehicle_state.assigned_operator,
+                last_position_x=vehicle_state.last_position_x,
+                last_position_y=vehicle_state.last_position_y,
+                last_yaw=vehicle_state.last_yaw,
+                last_speed=vehicle_state.last_speed,
                 updated_at=vehicle_state.updated_at,
                 open_alerts_count=open_alerts_count,
             )

@@ -23,6 +23,11 @@ if str(_workspace_root) not in sys.path:
     sys.path.insert(0, str(_workspace_root))
 
 from services.schemas.events import RawTelemetryEvent
+from services.id_generator import (
+    generate_vehicle_display_id,
+    generate_scene_display_id,
+    get_vehicle_type_label,
+)
 
 from ..dataset.normalizer import TelemetryNormalizer
 from ..dataset.reader import DatasetReader
@@ -242,6 +247,12 @@ class ReplayEngine:
             
             # Generate vehicle_id for ego: "{scene_id}_ego"
             vehicle_id = f"{scene_id}_ego"
+            scene_id_str = str(scene_id)
+            
+            # Generate human-readable display IDs
+            vehicle_display_id = generate_vehicle_display_id(vehicle_id, scene_id_str)
+            scene_display_id = generate_scene_display_id(scene_id_str, event_time)
+            vehicle_type = get_vehicle_type_label(vehicle_id)
             
             # Create and emit ego event with telemetry data
             ego_event = RawTelemetryEvent(
@@ -249,10 +260,13 @@ class ReplayEngine:
                 event_time=event_time,
                 processing_time=processing_time,
                 vehicle_id=vehicle_id,
-                scene_id=str(scene_id),
+                vehicle_display_id=vehicle_display_id,
+                scene_id=scene_id_str,
+                scene_display_id=scene_display_id,
                 frame_index=frame_index,
                 is_ego=True,
                 track_id=None,
+                vehicle_type=vehicle_type,
                 centroid=normalized_ego['centroid'],
                 velocity=normalized_ego['velocity'],
                 speed=normalized_ego['speed'],
@@ -283,6 +297,12 @@ class ReplayEngine:
                 
                 # Generate vehicle_id for agent: "{scene_id}_track_{track_id}"
                 vehicle_id = f"{scene_id}_track_{track_id}"
+                scene_id_str = str(scene_id)
+                
+                # Generate human-readable display IDs
+                vehicle_display_id = generate_vehicle_display_id(vehicle_id, scene_id_str)
+                scene_display_id = generate_scene_display_id(scene_id_str, event_time)
+                vehicle_type = get_vehicle_type_label(vehicle_id)
                 
                 # Create and emit agent event with telemetry data
                 agent_event = RawTelemetryEvent(
@@ -290,10 +310,13 @@ class ReplayEngine:
                     event_time=event_time,
                     processing_time=processing_time,
                     vehicle_id=vehicle_id,
-                    scene_id=str(scene_id),
+                    vehicle_display_id=vehicle_display_id,
+                    scene_id=scene_id_str,
+                    scene_display_id=scene_display_id,
                     frame_index=frame_index,
                     is_ego=False,
                     track_id=track_id,
+                    vehicle_type=vehicle_type,
                     centroid=normalized_agent['centroid'],
                     velocity=normalized_agent['velocity'],
                     speed=normalized_agent['speed'],
@@ -315,6 +338,12 @@ class ReplayEngine:
                 
                 # Generate vehicle_id for agent: "{scene_id}_track_{track_id}"
                 vehicle_id = f"{scene_id}_track_{track_id}"
+                scene_id_str = str(scene_id)
+                
+                # Generate human-readable display IDs
+                vehicle_display_id = generate_vehicle_display_id(vehicle_id, scene_id_str)
+                scene_display_id = generate_scene_display_id(scene_id_str, event_time)
+                vehicle_type = get_vehicle_type_label(vehicle_id)
                 
                 # Create and emit agent event with telemetry data
                 agent_event = RawTelemetryEvent(
@@ -322,10 +351,13 @@ class ReplayEngine:
                     event_time=event_time,
                     processing_time=processing_time,
                     vehicle_id=vehicle_id,
-                    scene_id=str(scene_id),
+                    vehicle_display_id=vehicle_display_id,
+                    scene_id=scene_id_str,
+                    scene_display_id=scene_display_id,
                     frame_index=frame_index,
                     is_ego=False,
                     track_id=track_id,
+                    vehicle_type=vehicle_type,
                     centroid=normalized_agent['centroid'],
                     velocity=normalized_agent['velocity'],
                     speed=normalized_agent['speed'],

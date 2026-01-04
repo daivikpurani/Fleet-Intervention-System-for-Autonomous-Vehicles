@@ -1,7 +1,8 @@
 """Frame timing scheduler.
 
 Implements frame timing logic for replay rate control.
-Fixed replay rate: 10 Hz (100ms per frame).
+Normal replay rate: 10 Hz (100ms per frame).
+Demo replay rate: 1 Hz (1000ms per frame) - better for presentations.
 """
 
 import logging
@@ -10,30 +11,62 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Fixed replay rate: 10 Hz = 100ms per frame
-REPLAY_RATE_HZ = 10.0
+# Replay rate configurations
+NORMAL_RATE_HZ = 10.0  # 10 Hz = 100ms per frame (production-like)
+DEMO_RATE_HZ = 1.0     # 1 Hz = 1000ms per frame (demo-friendly)
+REPLAY_RATE_HZ = NORMAL_RATE_HZ  # Default rate
 FRAME_INTERVAL_SECONDS = 1.0 / REPLAY_RATE_HZ
 
 
 class ReplayScheduler:
-    """Scheduler for fixed-rate replay timing.
+    """Scheduler for configurable replay timing.
     
-    Maintains 10 Hz replay rate (100ms per frame).
+    Supports two modes:
+    - Normal: 10 Hz (100ms per frame) - production-like behavior
+    - Demo: 1 Hz (1000ms per frame) - better for live demonstrations
+    
     Uses wall-clock time to ensure consistent timing.
     """
 
-    def __init__(self, replay_rate_hz: float = REPLAY_RATE_HZ):
+    def __init__(self, replay_rate_hz: float = REPLAY_RATE_HZ, demo_mode: bool = False):
         """Initialize scheduler.
         
         Args:
-            replay_rate_hz: Target replay rate in Hz (default: 10.0)
+            replay_rate_hz: Target replay rate in Hz (default: 10.0, ignored if demo_mode=True)
+            demo_mode: If True, uses DEMO_RATE_HZ (1 Hz) regardless of replay_rate_hz
         """
-        self.replay_rate_hz = replay_rate_hz
-        self.frame_interval = 1.0 / replay_rate_hz
+        self._demo_mode = demo_mode
+        
+        if demo_mode:
+            self.replay_rate_hz = DEMO_RATE_HZ
+            logger.info(f"Demo mode enabled - using slow replay rate: {DEMO_RATE_HZ} Hz")
+        else:
+            self.replay_rate_hz = replay_rate_hz
+            
+        self.frame_interval = 1.0 / self.replay_rate_hz
         self.last_frame_time: Optional[float] = None
         self.frame_count = 0
         
-        logger.info(f"Initialized scheduler with rate {replay_rate_hz} Hz (interval: {self.frame_interval:.3f}s)")
+        logger.info(f"Initialized scheduler with rate {self.replay_rate_hz} Hz (interval: {self.frame_interval:.3f}s)")
+
+    @property
+    def demo_mode(self) -> bool:
+        """Check if demo mode is enabled."""
+        return self._demo_mode
+    
+    def set_demo_mode(self, enabled: bool) -> None:
+        """Enable or disable demo mode.
+        
+        Args:
+            enabled: True to enable demo mode (1 Hz), False for normal mode (10 Hz)
+        """
+        self._demo_mode = enabled
+        if enabled:
+            self.replay_rate_hz = DEMO_RATE_HZ
+        else:
+            self.replay_rate_hz = NORMAL_RATE_HZ
+        self.frame_interval = 1.0 / self.replay_rate_hz
+        logger.info(f"Scheduler rate changed to {self.replay_rate_hz} Hz (demo_mode={enabled})")
 
     def start(self) -> None:
         """Start the scheduler.

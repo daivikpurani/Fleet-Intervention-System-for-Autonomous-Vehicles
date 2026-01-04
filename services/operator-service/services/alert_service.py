@@ -7,6 +7,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from services.schemas.events import AnomalyEvent
+from services.id_generator import (
+    generate_incident_id,
+    generate_vehicle_display_id,
+    generate_scene_display_id,
+)
 from ..db.models import Alert, AlertStatus
 from .vehicle_state_service import VehicleStateService
 
@@ -47,13 +52,36 @@ class AlertService:
             )
             return existing_alert
 
+        # Generate display IDs if not provided by event
+        incident_id = event.incident_id or generate_incident_id(str(event.anomaly_id))
+        vehicle_display_id = event.vehicle_display_id or generate_vehicle_display_id(
+            event.vehicle_id, event.scene_id
+        )
+        scene_display_id = event.scene_display_id or generate_scene_display_id(
+            event.scene_id, event.event_time
+        )
+        
+        # Create human-readable rule display name
+        rule_display_names = {
+            "sudden_deceleration": "Sudden Deceleration",
+            "perception_instability": "Perception Instability", 
+            "dropout_proxy": "Sensor Dropout",
+        }
+        rule_display_name = event.rule_display_name or rule_display_names.get(
+            event.rule_name, event.rule_name.replace("_", " ").title()
+        )
+        
         # Create new alert
         alert = Alert(
             vehicle_id=event.vehicle_id,
+            vehicle_display_id=vehicle_display_id,
             scene_id=event.scene_id,
+            scene_display_id=scene_display_id,
             frame_index=event.frame_index,
             anomaly_id=event.anomaly_id,
+            incident_id=incident_id,
             rule_name=event.rule_name,
+            rule_display_name=rule_display_name,
             severity=event.severity,
             status=AlertStatus.OPEN,
             anomaly_payload=json.loads(event.model_dump_json()),
@@ -65,8 +93,8 @@ class AlertService:
         db.refresh(alert)
 
         logger.info(
-            f"Created new alert {alert.id} for vehicle {event.vehicle_id} "
-            f"(anomaly: {event.anomaly_id}, rule: {event.rule_name})"
+            f"Created new alert {incident_id} for vehicle {vehicle_display_id} "
+            f"(anomaly: {event.anomaly_id}, rule: {rule_display_name})"
         )
 
         # Update vehicle state (NORMAL -> ALERTING if first OPEN alert)

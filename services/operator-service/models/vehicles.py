@@ -13,10 +13,14 @@ class VehicleResponse(BaseModel):
     """Vehicle response model."""
 
     vehicle_id: str
+    vehicle_display_id: Optional[str] = Field(None, description="Human-readable vehicle ID (e.g., AV-SF01)")
+    vehicle_type: Optional[str] = Field(None, description="Vehicle type label")
     state: VehicleStateEnum
     assigned_operator: Optional[str]
     last_position_x: Optional[float] = Field(None, description="Last known X position in meters")
     last_position_y: Optional[float] = Field(None, description="Last known Y position in meters")
+    last_yaw: Optional[float] = Field(None, description="Last known heading in radians")
+    last_speed: Optional[float] = Field(None, description="Last known speed in m/s")
     updated_at: datetime
     open_alerts_count: int = Field(default=0, description="Number of OPEN alerts for this vehicle")
 

@@ -68,10 +68,14 @@ class Alert(Base):
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     vehicle_id = Column(Text, nullable=False, index=True)
+    vehicle_display_id = Column(Text, nullable=True, comment="Human-readable vehicle ID (e.g., AV-SF01)")
     scene_id = Column(Text, nullable=False)
+    scene_display_id = Column(Text, nullable=True, comment="Human-readable scene ID (e.g., RUN-0104-A)")
     frame_index = Column(Integer, nullable=False)
     anomaly_id = Column(PostgresUUID(as_uuid=True), nullable=False, unique=True)
+    incident_id = Column(Text, nullable=True, index=True, comment="Human-readable incident ID (e.g., INC-7K3P2)")
     rule_name = Column(Text, nullable=False)
+    rule_display_name = Column(Text, nullable=True, comment="Human-readable rule name")
     severity = Column(SQLEnum(Severity), nullable=False)
     status = Column(SQLEnum(AlertStatus), nullable=False, default=AlertStatus.OPEN)
     anomaly_payload = Column(JSONB, nullable=False)
@@ -124,13 +128,17 @@ class VehicleState(Base):
     __tablename__ = "vehicle_state"
 
     vehicle_id = Column(Text, primary_key=True)
+    vehicle_display_id = Column(Text, nullable=True, comment="Human-readable vehicle ID (e.g., AV-SF01)")
+    vehicle_type = Column(Text, nullable=True, comment="Vehicle type label")
     state = Column(SQLEnum(VehicleStateEnum), nullable=False, default=VehicleStateEnum.NORMAL)
     assigned_operator = Column(Text, nullable=True)
     last_position_x = Column(Float, nullable=True, comment="Last known X position in meters")
     last_position_y = Column(Float, nullable=True, comment="Last known Y position in meters")
+    last_yaw = Column(Float, nullable=True, comment="Last known heading in radians")
+    last_speed = Column(Float, nullable=True, comment="Last known speed in m/s")
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     def __repr__(self) -> str:
-        return f"<VehicleState(vehicle_id={self.vehicle_id}, state={self.state})>"
+        return f"<VehicleState(vehicle_id={self.vehicle_id}, display_id={self.vehicle_display_id}, state={self.state})>"

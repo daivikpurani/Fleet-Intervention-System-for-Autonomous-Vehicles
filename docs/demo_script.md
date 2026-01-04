@@ -4,6 +4,13 @@
 
 This document provides a step-by-step walkthrough for demonstrating the Autonomous Fleet Response System. The demo showcases real-time anomaly detection and operator intervention workflows using deterministic replay of the L5Kit dataset.
 
+### What's New - Demo Mode Features
+
+- **Human-Readable IDs**: Vehicles show as `AV-SF01` (ego) or `VH-4B2F` (tracked), incidents as `INC-7K3P2`
+- **Demo Pacing**: 1 Hz replay rate (1 frame/second) for better visibility during presentations
+- **Professional UI**: Mission control aesthetic with fleet status bar and real-time statistics
+- **Enhanced Alert Cards**: Incident numbers, severity badges, and slide-in animations
+
 ### Demo Narrative
 
 The system monitors a fleet of autonomous vehicles in an urban environment. As vehicles navigate through traffic, the anomaly detection service identifies potential safety issues:
@@ -87,22 +94,33 @@ http://localhost:5173
 - **Center**: Vehicle map (initially empty or showing existing vehicles)
 - **Right Panel**: Vehicle detail (initially showing "No vehicle selected")
 
-### Step 3: Start Replay
+### Step 3: Start Demo Replay
 
-In a new terminal, trigger the replay:
+In a new terminal, trigger the demo replay. Use **demo mode** for presentations (slower 1 Hz rate):
 
 ```bash
-# Start replay for first 3 scenes
+# Option A: Quick start demo mode (recommended for presentations)
+curl -X POST http://localhost:8000/demo/start
+
+# Option B: Start replay with demo mode enabled
 curl -X POST http://localhost:8000/replay/start \
   -H "Content-Type: application/json" \
-  -d '{"scene_ids": [0, 1, 2]}'
+  -d '{"scene_ids": [0], "demo_mode": true}'
+
+# Option C: Normal speed (10 Hz) for testing
+curl -X POST http://localhost:8000/replay/start \
+  -H "Content-Type: application/json" \
+  -d '{"scene_ids": [0, 1, 2], "demo_mode": false}'
 ```
 
-**Expected Response**:
+**Expected Response (Demo Mode)**:
 ```json
 {
   "status": "started",
-  "message": "Replay started for 3 scene(s)"
+  "message": "Demo started with 1 scene(s) at 1 Hz",
+  "scene_ids": [0],
+  "demo_mode": true,
+  "replay_rate_hz": 1.0
 }
 ```
 
@@ -110,30 +128,46 @@ curl -X POST http://localhost:8000/replay/start \
 
 Watch the operator dashboard as vehicles appear and anomalies are detected:
 
-**Timeline** (approximate):
+**Timeline** (approximate, in demo mode at 1 Hz):
 
 | Time | Event |
 |------|-------|
-| 0-5s | Vehicles begin appearing on map |
-| 5-15s | First anomalies detected (perception_instability) |
-| 15-30s | More anomalies accumulate (sudden_deceleration) |
-| 30s+ | Continuous stream of telemetry and occasional anomalies |
+| 0-5s | Vehicles begin appearing on map with human-readable IDs (AV-SF01) |
+| 5-20s | First incidents detected (INC-XXXXX) |
+| 20-60s | More incidents accumulate with slide-in animations |
+| 60s+ | Continuous stream of telemetry and occasional incidents |
 
 **What to observe**:
 
-1. **Map View**: Vehicle markers appear and move in real-time
-   - Green markers: Normal vehicles
-   - Yellow markers: Vehicles with WARNING alerts
-   - Red markers: Vehicles with CRITICAL alerts
+1. **Fleet Status Bar** (top):
+   - Real-time vehicle counts (Total, AV, Nominal, Alerting)
+   - Alert severity breakdown (Critical, Warning, Info)
+   - Live connection status with clock
 
-2. **Alert List**: Alerts appear as anomalies are detected
-   - Severity badges: INFO (blue), WARNING (yellow), CRITICAL (red)
-   - Newest alerts at top
-   - Alert count per rule type
+2. **Map View** (center):
+   - Triangle markers for AV (ego) vehicles with heading direction
+   - Circle markers for tracked vehicles
+   - Color coding: Green (normal), Yellow (warning), Red (critical)
+   - Glow effect on selected vehicles
 
-3. **Real-time Updates**: Watch the WebSocket connection indicator
-   - Should remain green "Connected"
-   - Alerts and vehicle positions update without refresh
+3. **Alert List** (left panel):
+   - Human-readable incident IDs (INC-7K3P2)
+   - Vehicle display IDs (AV-SF01, VH-4B2F)
+   - Slide-in animation for new alerts
+   - Relative timestamps ("12s ago")
+   - Quick severity stats at top
+
+4. **Vehicle Detail** (right panel):
+   - Display ID and internal ID
+   - Vehicle type (Autonomous Vehicle / Tracked Vehicle)
+   - Speed in km/h and heading in degrees
+   - State badge with pulse animation for alerts
+
+5. **Incident Panel** (right panel):
+   - Incident ID and severity badge
+   - Rule display name (e.g., "Sudden Deceleration")
+   - Evidence values with units
+   - Action history timeline
 
 ### Step 5: Investigate an Alert
 

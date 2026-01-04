@@ -1,8 +1,10 @@
 """Vehicle state service for computing and updating vehicle states."""
 
 import logging
+from typing import Optional
 from sqlalchemy.orm import Session
 
+from services.id_generator import generate_vehicle_display_id, get_vehicle_type_label
 from ..db.models import Alert, AlertStatus, OperatorAction, ActionType, VehicleState, VehicleStateEnum
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,11 @@ class VehicleStateService:
         position_x: float,
         position_y: float,
         db: Session,
+        vehicle_display_id: Optional[str] = None,
+        vehicle_type: Optional[str] = None,
+        yaw: Optional[float] = None,
+        speed: Optional[float] = None,
+        scene_id: Optional[str] = None,
     ) -> VehicleState:
         """Update vehicle position from telemetry.
 
@@ -108,10 +115,21 @@ class VehicleStateService:
             position_x: X position in meters
             position_y: Y position in meters
             db: Database session
+            vehicle_display_id: Human-readable vehicle ID (optional)
+            vehicle_type: Vehicle type label (optional)
+            yaw: Vehicle heading in radians (optional)
+            speed: Vehicle speed in m/s (optional)
+            scene_id: Scene ID for generating display IDs (optional)
 
         Returns:
             Updated VehicleState record
         """
+        # Generate display IDs if not provided
+        if vehicle_display_id is None and scene_id:
+            vehicle_display_id = generate_vehicle_display_id(vehicle_id, scene_id)
+        if vehicle_type is None:
+            vehicle_type = get_vehicle_type_label(vehicle_id)
+            
         # Get or create vehicle state
         vehicle_state = db.query(VehicleState).filter(
             VehicleState.vehicle_id == vehicle_id
@@ -122,14 +140,26 @@ class VehicleStateService:
             computed_state = VehicleStateService.compute_state(vehicle_id, db)
             vehicle_state = VehicleState(
                 vehicle_id=vehicle_id,
+                vehicle_display_id=vehicle_display_id,
+                vehicle_type=vehicle_type,
                 state=computed_state,
                 last_position_x=position_x,
                 last_position_y=position_y,
+                last_yaw=yaw,
+                last_speed=speed,
             )
             db.add(vehicle_state)
         else:
             vehicle_state.last_position_x = position_x
             vehicle_state.last_position_y = position_y
+            if vehicle_display_id:
+                vehicle_state.vehicle_display_id = vehicle_display_id
+            if vehicle_type:
+                vehicle_state.vehicle_type = vehicle_type
+            if yaw is not None:
+                vehicle_state.last_yaw = yaw
+            if speed is not None:
+                vehicle_state.last_speed = speed
             # Also update state in case alerts changed
             vehicle_state.state = VehicleStateService.compute_state(vehicle_id, db)
 
