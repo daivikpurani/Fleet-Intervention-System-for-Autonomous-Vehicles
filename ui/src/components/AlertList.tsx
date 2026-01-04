@@ -16,6 +16,8 @@ export function AlertList({ onAlertClick, demoMode = false }: AlertListProps) {
     filters,
     updateFilters,
     selectAlert,
+    loading,
+    error,
   } = useAlerts();
 
   // Demo mode: auto-select first CRITICAL alert
@@ -134,7 +136,15 @@ export function AlertList({ onAlertClick, demoMode = false }: AlertListProps) {
           padding: "8px",
         }}
       >
-        {alerts.length === 0 ? (
+        {loading ? (
+          <div style={{ padding: "16px", textAlign: "center", color: "#888" }}>
+            Loading alerts...
+          </div>
+        ) : error ? (
+          <div style={{ padding: "16px", textAlign: "center", color: "#d32f2f" }}>
+            Error: {error}
+          </div>
+        ) : alerts.length === 0 ? (
           <div style={{ padding: "16px", textAlign: "center", color: "#888" }}>
             No alerts found
           </div>

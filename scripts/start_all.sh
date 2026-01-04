@@ -101,16 +101,16 @@ wait_for_service() {
 cleanup() {
     echo -e "\n${YELLOW}Shutting down services...${NC}"
     
-    # Kill background processes
+    # Kill background processes (backend services and frontend)
     jobs -p | xargs -r kill 2>/dev/null || true
     
-    # Only stop infrastructure if we started it
-    if [ "$INFRA_ONLY" = false ] && [ "$BACKEND_ONLY" = false ] && [ "$FRONTEND_ONLY" = false ]; then
-        echo -e "${BLUE}Stopping infrastructure...${NC}"
-        docker-compose down 2>/dev/null || true
-    fi
+    # NOTE: We do NOT stop infrastructure (Postgres, Kafka, Zookeeper) by default
+    # This allows you to restart backend services without restarting infrastructure
+    # To stop infrastructure, run: make down or docker-compose down
     
-    echo -e "${GREEN}Cleanup complete${NC}"
+    echo -e "${GREEN}Backend services stopped${NC}"
+    echo -e "${YELLOW}Infrastructure (Postgres, Kafka) is still running${NC}"
+    echo -e "${YELLOW}To stop infrastructure: make down${NC}"
     exit 0
 }
 
@@ -129,9 +129,32 @@ if [ "$FRONTEND_ONLY" = false ]; then
         exit 1
     fi
     
-    # Start infrastructure services
-    echo -e "${BLUE}Starting Postgres, Zookeeper, and Kafka...${NC}"
-    docker-compose up -d
+    # Check if infrastructure is already running
+    if docker ps --format '{{.Names}}' | grep -q "^fleetops-postgres$" && \
+       docker ps --format '{{.Names}}' | grep -q "^fleetops-kafka$"; then
+        echo -e "${GREEN}✓ Infrastructure is already running${NC}"
+        echo -e "${BLUE}  Skipping infrastructure startup...${NC}"
+        # Still check health to make sure everything is working
+        postgres_healthy=$(docker inspect --format='{{.State.Health.Status}}' fleetops-postgres 2>/dev/null | grep -q "healthy" && echo "true" || echo "false")
+        kafka_healthy=$(docker inspect --format='{{.State.Health.Status}}' fleetops-kafka 2>/dev/null | grep -q "healthy" && echo "true" || echo "false")
+        
+        if [ "$postgres_healthy" = "true" ]; then
+            echo -e "${GREEN}✓ Postgres is healthy${NC}"
+        else
+            echo -e "${YELLOW}⚠ Postgres is running but not healthy${NC}"
+        fi
+        
+        if [ "$kafka_healthy" = "true" ]; then
+            echo -e "${GREEN}✓ Kafka is healthy${NC}"
+        else
+            echo -e "${YELLOW}⚠ Kafka is running but not healthy${NC}"
+            echo -e "${YELLOW}  Check logs: docker logs fleetops-kafka${NC}"
+            echo -e "${YELLOW}  If you see 'InconsistentClusterIdException', run: make kafka-reset${NC}"
+        fi
+    else
+        # Start infrastructure services
+        echo -e "${BLUE}Starting Postgres, Zookeeper, and Kafka...${NC}"
+        docker-compose up -d
     
     # Wait for services to be healthy
     echo -e "${BLUE}Waiting for infrastructure services to be healthy...${NC}"
@@ -189,6 +212,7 @@ if [ "$FRONTEND_ONLY" = false ]; then
             echo -e "${YELLOW}  If you see 'InconsistentClusterIdException', run: make kafka-reset${NC}"
         fi
     fi
+    fi  # End of else block for infrastructure startup
     
     if [ "$INFRA_ONLY" = true ]; then
         echo -e "${GREEN}Infrastructure started. Use Ctrl+C to stop.${NC}"

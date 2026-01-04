@@ -20,35 +20,51 @@ This system models an autonomous fleet response system that replays telemetry fr
 
 ## Quick Start - Running All Services
 
-To start the entire system (infrastructure, backend services, and frontend):
+### Recommended Workflow (Infrastructure Stays Running)
 
+**First time setup:**
 ```bash
-# Start all services without auto-reload
+# Start infrastructure once (Postgres, Kafka, Zookeeper)
+make up
+
+# Or start everything including infrastructure
 ./scripts/start_all.sh
-
-# Or using Makefile
-make start
-
-# Start all services with auto-reload (recommended for development)
-./scripts/start_all.sh --reload
-
-# Or using Makefile
-make start-reload
 ```
 
-**Options:**
+**Daily development (infrastructure already running):**
+```bash
+# Just start backend services and frontend
+# The script will detect infrastructure is running and skip starting it
+./scripts/start_all.sh
+
+# Or with auto-reload (recommended for development)
+./scripts/start_all.sh --reload
+```
+
+**When you're done for the day:**
+- Press `Ctrl+C` to stop backend services and frontend
+- Infrastructure (Postgres, Kafka) stays running
+- To stop infrastructure: `make down`
+
+### Options
+
 - `--reload` / `-r`: Enable auto-reload for backend services (uses uvicorn --reload)
 - `--infra-only`: Start only infrastructure (Postgres, Kafka)
 - `--backend-only`: Start only backend services
 - `--frontend-only`: Start only frontend
 - `--help` / `-h`: Show help message
 
-**Services started:**
-- Infrastructure: Postgres (port 5432), Kafka (port 9092)
-- Backend: replay-service (port 8000), anomaly-service (Kafka consumer), operator-service (port 8003)
-- Frontend: Vite dev server (port 5173) with hot reload
+### Services
 
-Press `Ctrl+C` to stop all services.
+- **Infrastructure** (stays running): Postgres (port 5432), Kafka (port 9092)
+- **Backend**: replay-service (port 8000), anomaly-service (Kafka consumer), operator-service (port 8003)
+- **Frontend**: Vite dev server (port 5173) with hot reload
+
+### Why This Workflow?
+
+- **Faster restarts**: Infrastructure takes 30-60 seconds to start; backend services start in seconds
+- **Less resource usage**: Infrastructure containers stay running but idle when not in use
+- **Better for development**: You can restart backend services quickly without waiting for Kafka/Postgres
 
 ## How to Run Phase 0 Checks
 

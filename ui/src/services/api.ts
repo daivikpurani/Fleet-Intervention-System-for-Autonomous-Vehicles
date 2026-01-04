@@ -12,19 +12,33 @@ class ApiError extends Error {
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
+  const fullUrl = `${API_BASE_URL}${url}`;
+  console.log("[api] Fetching:", fullUrl, options);
+  
+  try {
+    const response = await fetch(fullUrl, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
 
-  if (!response.ok) {
-    throw new ApiError(response.status, `API error: ${response.statusText}`);
+    console.log("[api] Response status:", response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[api] Error response:", errorText);
+      throw new ApiError(response.status, `API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log("[api] Response data:", data);
+    return data;
+  } catch (error) {
+    console.error("[api] Fetch error:", error);
+    throw error;
   }
-
-  return response.json();
 }
 
 export const api = {

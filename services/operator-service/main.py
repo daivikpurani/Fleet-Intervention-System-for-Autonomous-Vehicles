@@ -271,12 +271,23 @@ app.add_middleware(
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates."""
+    # Handle connection setup separately - disconnect here needs its own handler
     try:
         await websocket_manager.connect(websocket)
         logger.info(f"WebSocket connection established from {websocket.client}")
-        
-        # Keep connection alive by waiting for messages or disconnect
-        # The connection stays open as long as this loop runs
+    except WebSocketDisconnect:
+        # Client disconnected during connection setup (before entering message loop)
+        logger.info("WebSocket disconnected during setup")
+        websocket_manager.disconnect(websocket)
+        return
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {e}", exc_info=True)
+        websocket_manager.disconnect(websocket)
+        return
+    
+    # Keep connection alive by waiting for messages or disconnect
+    # The connection stays open as long as this loop runs
+    try:
         while True:
             try:
                 # Wait for messages from client (or disconnect)
@@ -284,14 +295,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 data = await websocket.receive_text()
                 logger.debug(f"Received WebSocket message: {data}")
             except WebSocketDisconnect:
-                # Normal disconnect
+                # Normal disconnect during message loop
                 logger.info("WebSocket client disconnected")
                 break
-    except WebSocketDisconnect:
-        # Client disconnected during connection setup
-        logger.info("WebSocket disconnected during setup")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}", exc_info=True)
+        logger.error(f"WebSocket error during message loop: {e}", exc_info=True)
     finally:
         websocket_manager.disconnect(websocket)
         logger.info("WebSocket connection cleanup complete")

@@ -26,11 +26,14 @@ export function useAlerts() {
       try {
         setLoading(true);
         setError(null);
+        console.log("[useAlerts] Fetching alerts with filters:", filters);
         const fetchedAlerts = await api.getAlerts(filters.status, filters.vehicleId);
+        console.log("[useAlerts] Fetched alerts:", fetchedAlerts.length, fetchedAlerts);
         if (!cancelled) {
           setAlerts(fetchedAlerts);
         }
       } catch (err) {
+        console.error("[useAlerts] Error fetching alerts:", err);
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to fetch alerts");
         }
@@ -64,9 +67,11 @@ export function useAlerts() {
   // Filter alerts
   const filteredAlerts = useMemo(() => {
     let result = alerts;
+    console.log("[useAlerts] Filtering alerts. Total:", alerts.length, "Filters:", filters);
 
     if (filters.severity) {
       result = result.filter((alert) => alert.severity === filters.severity);
+      console.log("[useAlerts] After severity filter:", result.length);
     }
 
     if (filters.vehicleId) {
@@ -74,6 +79,7 @@ export function useAlerts() {
       result = result.filter((alert) =>
         alert.vehicle_id.toLowerCase().includes(searchTerm)
       );
+      console.log("[useAlerts] After vehicleId filter:", result.length);
     }
 
     // Sort by last_seen_event_time (newest first)
@@ -83,12 +89,13 @@ export function useAlerts() {
         new Date(a.last_seen_event_time).getTime()
     );
 
+    console.log("[useAlerts] Final filtered alerts:", result.length);
     return result;
   }, [alerts, filters]);
 
   const selectedAlert = useMemo(
-    () => alerts.find((alert) => alert.id === selectedAlertId) || null,
-    [alerts, selectedAlertId]
+    () => filteredAlerts.find((alert) => alert.id === selectedAlertId) || null,
+    [filteredAlerts, selectedAlertId]
   );
 
   const updateFilters = useCallback((newFilters: Partial<AlertFilters>) => {
