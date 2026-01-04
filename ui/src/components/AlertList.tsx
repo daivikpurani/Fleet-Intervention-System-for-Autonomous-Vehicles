@@ -1,6 +1,6 @@
 // Alert list component with filtering
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import type { Alert, AlertStatus, Severity } from "../types";
 import { useAlerts } from "../hooks/useAlerts";
 import { useTheme } from "../contexts/ThemeContext";
@@ -22,16 +22,24 @@ export function AlertList({ onAlertClick, demoMode = false }: AlertListProps) {
     error,
   } = useAlerts();
 
+  // Store the latest onAlertClick callback in a ref to avoid unnecessary effect re-runs.
+  // This prevents the effect from running when the parent recreates the callback function
+  // (which happens on every render if not memoized with useCallback).
+  const onAlertClickRef = useRef(onAlertClick);
+  useEffect(() => {
+    onAlertClickRef.current = onAlertClick;
+  }, [onAlertClick]);
+
   // Demo mode: auto-select first CRITICAL alert
   useEffect(() => {
     if (demoMode && alerts.length > 0 && !selectedAlert) {
       const criticalAlert = alerts.find((a) => a.severity === "CRITICAL");
       if (criticalAlert) {
         selectAlert(criticalAlert.id);
-        onAlertClick(criticalAlert);
+        onAlertClickRef.current(criticalAlert);
       }
     }
-  }, [demoMode, alerts, selectedAlert, selectAlert, onAlertClick]);
+  }, [demoMode, alerts, selectedAlert, selectAlert]);
 
   const handleStatusChange = (status: AlertStatus | "") => {
     updateFilters({ status: status || undefined });
