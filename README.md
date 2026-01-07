@@ -1,5 +1,4 @@
-# AV Fleet Intervention and Recovery System
-
+# Fleet Intervention System for Autonomous Vehicles
 ## Project Overview
 
 This system models an autonomous fleet response system that replays telemetry from the Lyft L5Kit dataset, detects anomalies via Kafka streaming, and provides an operator dashboard for monitoring and intervention. The system demonstrates post-perception telemetry processing, rule-based anomaly detection, and operator workflow management.
