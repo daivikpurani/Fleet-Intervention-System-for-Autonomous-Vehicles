@@ -3,6 +3,8 @@
 
 This system models an autonomous fleet response system that replays telemetry from the Lyft L5Kit dataset, detects anomalies via Kafka streaming, and provides an operator dashboard for monitoring and intervention. The system demonstrates post-perception telemetry processing, rule-based anomaly detection, and operator workflow management.
 
+<img width="2816" height="1536" alt="Gemini_Generated_Image_hea3pjhea3pjhea3" src="https://github.com/user-attachments/assets/29b3284c-fd95-499f-ad28-37f5ebfabdf5" />
+
 **What this models:**
 - Post-perception telemetry streaming and processing
 - Real-time anomaly detection using rule-based thresholds
