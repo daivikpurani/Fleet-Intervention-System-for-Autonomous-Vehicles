@@ -5,12 +5,13 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useTheme } from "../contexts/ThemeContext";
 import type { Vehicle, VehicleState, Alert } from "../types";
-import { 
-  assignVehicleToRoute, 
-  mapPositionToRoute, 
-  getRoutesCenter,
-  type MappedPosition 
-} from "../utils/syntheticRoutes";
+import {
+  getStaticPosition,
+  getStaticPositionsCenter,
+  type StaticPosition
+} from "../utils/staticVehiclePositions";
+import { PlaybackControls } from "./PlaybackControls";
+import { cn } from "../lib/utils";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
@@ -40,35 +41,29 @@ export function MapView({
   const [showHeatMap, setShowHeatMap] = useState(false);
   const heatMapInitialized = useRef(false);
 
-  // Helper to get mapped coordinates for a vehicle
-  const getMappedPosition = (vehicleId: string, x: number, y: number): MappedPosition => {
-    const route = assignVehicleToRoute(vehicleId);
-    return mapPositionToRoute(x, y, route);
+  // Limit vehicles to 30 and get their static positions
+  const displayedVehicles = useMemo(() => {
+    return vehicles.slice(0, 30);
+  }, [vehicles]);
+
+  // Helper to get static position for a vehicle by index
+  const getMappedPosition = (vehicleIndex: number): StaticPosition => {
+    return getStaticPosition(vehicleIndex);
   };
 
   // Generate heat map GeoJSON from alerts
   const heatMapData = useMemo(() => {
     const openAlerts = alerts.filter((a) => a.status === "OPEN");
     
-    // Find vehicle positions for alerts
-    const vehiclePositions = new Map<string, { x: number; y: number; vehicleId: string }>();
-    vehicles.forEach((v) => {
-      if (v.last_position_x != null && v.last_position_y != null) {
-        vehiclePositions.set(v.vehicle_id, {
-          x: v.last_position_x,
-          y: v.last_position_y,
-          vehicleId: v.vehicle_id,
-        });
-      }
-    });
-
     // Create GeoJSON features for alerts with positions
+    // Map alerts to vehicle positions by finding the vehicle index
     const features = openAlerts
-      .filter((alert) => vehiclePositions.has(alert.vehicle_id))
       .map((alert) => {
-        const pos = vehiclePositions.get(alert.vehicle_id)!;
-        // Use synthetic route mapping for realistic positioning
-        const mapped = getMappedPosition(pos.vehicleId, pos.x, pos.y);
+        const vehicleIndex = displayedVehicles.findIndex((v) => v.vehicle_id === alert.vehicle_id);
+        if (vehicleIndex === -1) return null;
+        
+        // Use static position for the vehicle
+        const mapped = getMappedPosition(vehicleIndex);
         
         // Weight by severity: CRITICAL=3, WARNING=2, INFO=1
         const weight =
@@ -87,41 +82,22 @@ export function MapView({
             coordinates: [mapped.lng, mapped.lat],
           },
         };
-      });
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
 
     return {
       type: "FeatureCollection" as const,
       features,
     };
-  }, [alerts, vehicles]);
+  }, [alerts, displayedVehicles]);
 
-  // Initialize map center from first ego vehicle or SF routes center
+  // Initialize map center from static positions center
   useEffect(() => {
     if (initialCenter) return;
 
-    const egoVehicle = vehicles.find(
-      (v) => v.vehicle_type === "Autonomous Vehicle" || v.vehicle_id.includes("ego")
-    );
-    const centerVehicle = egoVehicle || vehicles[0];
-
-    if (centerVehicle != null && centerVehicle.last_position_x != null && centerVehicle.last_position_y != null) {
-      // Use synthetic route mapping for centering
-      const mapped = getMappedPosition(
-        centerVehicle.vehicle_id,
-        centerVehicle.last_position_x,
-        centerVehicle.last_position_y
-      );
-      setInitialCenter({ lng: mapped.lng, lat: mapped.lat });
-    } else if (mapCenter) {
-      // Use routes center as fallback
-      const routesCenter = getRoutesCenter();
-      setInitialCenter({ lng: routesCenter.lng, lat: routesCenter.lat });
-    } else if (vehicles.length === 0) {
-      // Default to SF routes center when no vehicles
-      const routesCenter = getRoutesCenter();
-      setInitialCenter({ lng: routesCenter.lng, lat: routesCenter.lat });
-    }
-  }, [vehicles, mapCenter, initialCenter]);
+    const staticCenter = getStaticPositionsCenter();
+    setInitialCenter({ lng: staticCenter.lng, lat: staticCenter.lat });
+  }, [initialCenter]);
 
   // Initialize map
   useEffect(() => {
@@ -220,7 +196,7 @@ export function MapView({
     const map = mapRef.current;
 
     // Remove markers for vehicles that no longer exist
-    const currentVehicleIds = new Set(vehicles.map((v) => v.vehicle_id));
+    const currentVehicleIds = new Set(displayedVehicles.map((v) => v.vehicle_id));
     for (const [vehicleId, marker] of markersRef.current.entries()) {
       if (!currentVehicleIds.has(vehicleId)) {
         marker.remove();
@@ -229,20 +205,9 @@ export function MapView({
     }
 
     // Update or create markers
-    vehicles.forEach((vehicle) => {
-      if (
-        vehicle.last_position_x === null ||
-        vehicle.last_position_y === null
-      ) {
-        return;
-      }
-
-      // Use synthetic route mapping for realistic road positioning
-      const mapped = getMappedPosition(
-        vehicle.vehicle_id,
-        vehicle.last_position_x,
-        vehicle.last_position_y
-      );
+    displayedVehicles.forEach((vehicle, index) => {
+      // Use static position for vehicle
+      const mapped = getMappedPosition(index);
 
       // Get color based on state
       const getStateColor = (state: VehicleState): string => {
@@ -264,10 +229,8 @@ export function MapView({
       const size = isSelected ? baseSize + 4 : baseSize;
       const color = getStateColor(vehicle.state);
       
-      // Use route bearing for rotation, fallback to yaw if available
-      const rotationDeg = vehicle.last_yaw != null 
-        ? (90 - (vehicle.last_yaw * 180 / Math.PI)) % 360 
-        : mapped.bearing;
+      // Use static bearing for rotation
+      const rotationDeg = mapped.bearing;
 
       const existingMarker = markersRef.current.get(vehicle.vehicle_id);
 
@@ -291,7 +254,7 @@ export function MapView({
         markersRef.current.set(vehicle.vehicle_id, marker);
       }
     });
-  }, [vehicles, selectedVehicleId, onVehicleClick, initialCenter, theme]);
+  }, [displayedVehicles, selectedVehicleId, onVehicleClick, initialCenter, theme]);
 
   // SVG car icon for vehicle markers (top-down view, pointing up)
   const getCarSvg = (color: string, isEgo: boolean, isSelected: boolean, size: number): string => {
@@ -470,110 +433,53 @@ export function MapView({
   }
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: "400px" }}>
+    <div className="relative w-full h-full min-h-[400px]">
       <div
         ref={mapContainerRef}
-        style={{ width: "100%", height: "100%" }}
+        className="w-full h-full"
       />
       
       {/* Heat Map Toggle Button */}
       <button
         onClick={() => setShowHeatMap(!showHeatMap)}
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          padding: "8px 12px",
-          borderRadius: "8px",
-          border: `1px solid ${showHeatMap ? theme.colors.warning : theme.colors.border}`,
-          backgroundColor: showHeatMap ? theme.colors.warningMuted : theme.colors.surface,
-          color: showHeatMap ? theme.colors.warning : theme.colors.text,
-          cursor: "pointer",
-          fontSize: "12px",
-          fontWeight: 600,
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-          transition: "all 0.2s",
-          zIndex: 10,
-        }}
+        className={cn(
+          "absolute top-3 right-3 px-3 py-2 rounded-lg border shadow-md text-xs font-semibold flex items-center gap-2 z-10 transition-all",
+          showHeatMap
+            ? "bg-orange-100 border-orange-300 text-orange-700"
+            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+        )}
         title={showHeatMap ? "Hide incident heat map" : "Show incident heat map"}
       >
         Heat Map
         {openAlertCount > 0 && (
-          <span
-            style={{
-              backgroundColor: theme.colors.warning,
-              color: "#000",
-              borderRadius: "10px",
-              padding: "2px 6px",
-              fontSize: "10px",
-              fontWeight: 700,
-              minWidth: "18px",
-              textAlign: "center",
-            }}
-          >
+          <span className="bg-orange-600 text-white rounded-full px-1.5 py-0.5 text-[10px] font-bold min-w-[18px] text-center">
             {openAlertCount}
           </span>
         )}
         <span
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor: showHeatMap ? theme.colors.success : theme.colors.textMuted,
-          }}
+          className={cn(
+            "w-2 h-2 rounded-full",
+            showHeatMap ? "bg-green-500" : "bg-gray-400"
+          )}
         />
       </button>
 
       {/* Heat Map Legend */}
       {showHeatMap && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20px",
-            right: "10px",
-            padding: "10px 12px",
-            borderRadius: "8px",
-            backgroundColor: theme.colors.surface,
-            border: `1px solid ${theme.colors.border}`,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            fontSize: "11px",
-            zIndex: 10,
-          }}
-        >
-          <div
-            style={{
-              fontWeight: 600,
-              color: theme.colors.textSecondary,
-              marginBottom: "8px",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
+        <div className="absolute bottom-20 right-3 px-3 py-2 rounded-lg bg-white border border-gray-300 shadow-md text-xs z-10">
+          <div className="font-semibold text-gray-700 mb-2 uppercase tracking-wide">
             Incident Density
           </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
-            <span style={{ color: theme.colors.textMuted }}>Low</span>
-            <div
-              style={{
-                width: "100px",
-                height: "10px",
-                borderRadius: "5px",
-                background: "linear-gradient(to right, rgb(103,169,207), rgb(209,229,240), rgb(253,219,199), rgb(239,138,98), rgb(178,24,43))",
-              }}
-            />
-            <span style={{ color: theme.colors.textMuted }}>High</span>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 text-[10px]">Low</span>
+            <div className="w-24 h-2.5 rounded-full bg-gradient-to-r from-blue-300 via-cyan-200 via-orange-200 to-red-500" />
+            <span className="text-gray-500 text-[10px]">High</span>
           </div>
         </div>
       )}
+
+      {/* Playback Controls */}
+      <PlaybackControls />
     </div>
   );
 }

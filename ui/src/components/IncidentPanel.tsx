@@ -1,372 +1,162 @@
-// Incident panel showing alert evidence and actions with enhanced display
-
-import { useEffect, useState } from "react";
-import { api } from "../services/api";
 import { useTheme } from "../contexts/ThemeContext";
-import type { Alert, Action, Severity } from "../types";
+import type { Alert, Severity } from "../types";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { cn } from "../lib/utils";
 
 interface IncidentPanelProps {
   alert: Alert | null;
 }
 
 export function IncidentPanel({ alert }: IncidentPanelProps) {
-  const { theme } = useTheme();
-  const [actions, setActions] = useState<Action[]>([]);
-  const [loadingActions, setLoadingActions] = useState(false);
-
-  useEffect(() => {
-    if (!alert) {
-      setActions([]);
-      return;
-    }
-
-    async function fetchActions() {
-      if (!alert) return;
-      try {
-        setLoadingActions(true);
-        const vehicleActions = await api.getActions(alert.vehicle_id);
-        // Get last 5 actions
-        const sortedActions = vehicleActions
-          .sort(
-            (a, b) =>
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
-          .slice(0, 5);
-        setActions(sortedActions);
-      } catch (error) {
-        console.error("Failed to fetch actions:", error);
-      } finally {
-        setLoadingActions(false);
-      }
-    }
-
-    fetchActions();
-  }, [alert]);
-
   if (!alert) {
     return (
-      <div 
-        style={{ 
-          padding: "32px 16px", 
-          color: theme.colors.textMuted, 
-          textAlign: "center",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "8px",
-        }}
-      >
-        <div style={{ fontSize: "13px" }}>Select an alert to view incident details</div>
+      <div className="p-8 text-center text-gray-500 text-sm">
+        Select an alert to view incident details
       </div>
     );
   }
 
-  const getSeverityConfig = (severity: Severity) => {
-    switch (severity) {
-      case "CRITICAL":
-        return { color: theme.colors.critical, bg: theme.colors.criticalMuted };
-      case "WARNING":
-        return { color: theme.colors.warning, bg: theme.colors.warningMuted };
-      case "INFO":
-        return { color: theme.colors.info, bg: theme.colors.infoMuted };
-      default:
-        return { color: theme.colors.textMuted, bg: theme.colors.surfaceSecondary };
-    }
-  };
-
-  const severityConfig = getSeverityConfig(alert.severity);
-  const features = alert.anomaly_payload.features || {};
-  const thresholds = alert.anomaly_payload.thresholds || {};
+  const incidentId = alert.incident_id || `INC-${alert.id.slice(0, 5).toUpperCase()}`;
+  const vehicleDisplayId = alert.vehicle_display_id || alert.vehicle_id;
+  const ruleName = alert.rule_display_name || alert.rule_name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
   // Format feature values for display
   const formatValue = (key: string, value: any): string => {
     if (typeof value === "number") {
-      // Format based on key name
-      if (key.includes("acceleration") || key.includes("speed") || key.includes("velocity")) {
-        return `${value.toFixed(2)} m/s${key.includes("acceleration") ? "²" : ""}`;
+      if (key.includes("acceleration") || key.includes("speed") || key.includes("velocity") || key.includes("change")) {
+        return `${value.toFixed(1)} m/s${key.includes("acceleration") ? "²" : ""}`;
       }
       if (key.includes("displacement") || key.includes("distance") || key.includes("jump")) {
         return `${value.toFixed(2)} m`;
-      }
-      if (key.includes("probability") || key.includes("change")) {
-        return `${(value * 100).toFixed(1)}%`;
       }
       return value.toFixed(3);
     }
     return String(value);
   };
 
-  const InfoSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div style={{ marginBottom: "16px" }}>
-      <div
-        style={{
-          fontSize: "10px",
-          color: theme.colors.textMuted,
-          marginBottom: "8px",
-          textTransform: "uppercase",
-          letterSpacing: "0.5px",
-          fontWeight: 600,
-        }}
-      >
-        {title}
-      </div>
-      {children}
-    </div>
-  );
+  const features = alert.anomaly_payload?.features || {};
+  const firstEvidence = Object.entries(features)[0];
+  const evidenceText = firstEvidence 
+    ? `${firstEvidence[0].replace(/_/g, " ")}: ${formatValue(firstEvidence[0], firstEvidence[1])}`
+    : "No evidence available";
+
+  // Format dates
+  const formatEventTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   return (
-    <div style={{ padding: "16px", overflowY: "auto", maxHeight: "400px" }}>
+    <div className="p-4">
       {/* Header */}
-      <h2 style={{ 
-        margin: "0 0 16px 0", 
-        fontSize: "14px", 
-        fontWeight: 700, 
-        color: theme.colors.textSecondary,
-        letterSpacing: "0.5px",
-      }}>
-        INCIDENT DETAILS
+      <h2 className="text-sm font-bold text-gray-700 mb-4 tracking-wide uppercase">
+        Incident Details
       </h2>
 
       {/* Incident ID */}
-      <div style={{ marginBottom: "16px" }}>
-        <div
-          style={{
-            fontSize: "18px",
-            fontWeight: 700,
-            fontFamily: theme.fonts.mono,
-            color: theme.colors.text,
-            marginBottom: "4px",
-          }}
-        >
-          {alert.incident_id || `INC-${alert.id.slice(0, 5).toUpperCase()}`}
+      <div className="mb-4">
+        <div className="font-mono font-bold text-lg text-gray-900 mb-2">
+          {incidentId}
         </div>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <span
-            style={{
-              padding: "3px 8px",
-              borderRadius: "4px",
-              fontSize: "11px",
-              fontWeight: 700,
-              backgroundColor: severityConfig.bg,
-              color: severityConfig.color,
-            }}
-          >
+        <div className="flex items-center gap-2">
+          <Badge className={cn(
+            "text-xs font-bold px-2 py-0.5 border",
+            alert.severity === "CRITICAL" 
+              ? "bg-red-100 text-red-700 border-red-300"
+              : alert.severity === "WARNING"
+              ? "bg-orange-100 text-orange-700 border-orange-300"
+              : "bg-blue-100 text-blue-700 border-blue-300"
+          )}>
             {alert.severity}
-          </span>
-          <span
-            style={{
-              padding: "3px 8px",
-              borderRadius: "4px",
-              fontSize: "11px",
-              fontWeight: 600,
-              backgroundColor: 
-                alert.status === "OPEN" ? theme.colors.errorMuted :
-                alert.status === "ACKNOWLEDGED" ? theme.colors.warningMuted :
-                theme.colors.successMuted,
-              color: 
-                alert.status === "OPEN" ? theme.colors.error :
-                alert.status === "ACKNOWLEDGED" ? theme.colors.warning :
-                theme.colors.success,
-            }}
-          >
+          </Badge>
+          <Badge className={cn(
+            "text-xs font-semibold px-2 py-0.5 border",
+            alert.status === "OPEN"
+              ? "bg-red-100 text-red-700 border-red-300"
+              : alert.status === "ACKNOWLEDGED"
+              ? "bg-orange-100 text-orange-700 border-orange-300"
+              : "bg-green-100 text-green-700 border-green-300"
+          )}>
             {alert.status}
-          </span>
+          </Badge>
         </div>
       </div>
 
-      {/* Rule */}
-      <InfoSection title="Detection Rule">
-        <div style={{ 
-          fontSize: "13px", 
-          fontWeight: 600, 
-          color: theme.colors.text 
-        }}>
-          {alert.rule_display_name || alert.rule_name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+      {/* Detection Rule */}
+      <div className="mb-4">
+        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">
+          Detection Rule
         </div>
-      </InfoSection>
-
-      {/* Vehicle */}
-      <InfoSection title="Vehicle">
-        <div style={{ 
-          fontSize: "13px", 
-          fontWeight: 600, 
-          color: theme.colors.text,
-          fontFamily: theme.fonts.mono,
-        }}>
-          {alert.vehicle_display_id || alert.vehicle_id}
+        <div className="text-sm font-semibold text-gray-900">
+          {ruleName}
         </div>
-      </InfoSection>
+      </div>
 
-      {/* Scene Info */}
-      <InfoSection title="Context">
-        <div 
-          style={{ 
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "8px",
-            fontSize: "12px", 
-            color: theme.colors.text,
-            padding: "8px",
-            backgroundColor: theme.colors.surfaceSecondary,
-            borderRadius: "6px",
-          }}
+      {/* Context */}
+      <div className="mb-4">
+        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">
+          Context
+        </div>
+        <div className="text-sm font-mono font-semibold text-gray-900">
+          {vehicleDisplayId}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="mb-4">
+        <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-semibold">
+          Timeline
+        </div>
+        <div className="space-y-1 text-xs text-gray-600">
+          <div>
+            <span className="text-gray-500">First event: </span>
+            {formatEventTime(alert.first_seen_event_time)}
+          </div>
+          <div>
+            <span className="text-gray-500">Last event: </span>
+            {formatEventTime(alert.last_seen_event_time)}
+          </div>
+          <div>
+            <span className="text-gray-500">Frame: </span>
+            <span className="font-mono">{alert.frame_index}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Evidence */}
+      <div className="mb-4">
+        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">
+          Evidence
+        </div>
+        <div className="text-xs text-gray-700 font-mono">
+          {evidenceText}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 h-9 text-xs font-semibold bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
         >
-          <div>
-            <span style={{ color: theme.colors.textMuted }}>Scene: </span>
-            <span style={{ fontFamily: theme.fonts.mono }}>
-              {alert.scene_display_id || alert.scene_id}
-            </span>
-          </div>
-          <div>
-            <span style={{ color: theme.colors.textMuted }}>Frame: </span>
-            <span style={{ fontFamily: theme.fonts.mono }}>{alert.frame_index}</span>
-          </div>
-        </div>
-      </InfoSection>
-
-      {/* Event Times */}
-      <InfoSection title="Timeline">
-        <div 
-          style={{ 
-            fontSize: "11px", 
-            color: theme.colors.textSecondary,
-            display: "flex",
-            flexDirection: "column",
-            gap: "4px",
-          }}
+          Acknowledge
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1 h-9 text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
         >
-          <div>
-            <span style={{ color: theme.colors.textMuted }}>First seen: </span>
-            {new Date(alert.first_seen_event_time).toLocaleString()}
-          </div>
-          <div>
-            <span style={{ color: theme.colors.textMuted }}>Last seen: </span>
-            {new Date(alert.last_seen_event_time).toLocaleString()}
-          </div>
-        </div>
-      </InfoSection>
-
-      {/* Features (Evidence) */}
-      {Object.keys(features).length > 0 && (
-        <InfoSection title="Evidence">
-          <div
-            style={{
-              backgroundColor: theme.colors.surfaceSecondary,
-              padding: "10px",
-              borderRadius: "6px",
-              fontSize: "11px",
-              fontFamily: theme.fonts.mono,
-            }}
-          >
-            {Object.entries(features).map(([key, value]) => (
-              <div 
-                key={key} 
-                style={{ 
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "6px",
-                  paddingBottom: "6px",
-                  borderBottom: `1px solid ${theme.colors.borderSubtle}`,
-                }}
-              >
-                <span style={{ color: theme.colors.textSecondary }}>
-                  {key.replace(/_/g, " ")}
-                </span>
-                <span style={{ color: theme.colors.text, fontWeight: 600 }}>
-                  {formatValue(key, value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </InfoSection>
-      )}
-
-      {/* Thresholds */}
-      {Object.keys(thresholds).length > 0 && (
-        <InfoSection title="Thresholds">
-          <div
-            style={{
-              backgroundColor: theme.colors.surfaceSecondary,
-              padding: "10px",
-              borderRadius: "6px",
-              fontSize: "11px",
-              fontFamily: theme.fonts.mono,
-            }}
-          >
-            {Object.entries(thresholds).map(([key, value]) => (
-              <div 
-                key={key} 
-                style={{ 
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "4px",
-                }}
-              >
-                <span style={{ color: theme.colors.textMuted }}>
-                  {key.replace(/_/g, " ")}
-                </span>
-                <span style={{ color: theme.colors.textSecondary }}>
-                  {formatValue(key, value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </InfoSection>
-      )}
-
-      {/* Action History */}
-      <InfoSection title="Action History">
-        {loadingActions ? (
-          <div style={{ fontSize: "11px", color: theme.colors.textMuted }}>Loading...</div>
-        ) : actions.length === 0 ? (
-          <div style={{ fontSize: "11px", color: theme.colors.textMuted }}>No actions recorded</div>
-        ) : (
-          <div
-            style={{
-              backgroundColor: theme.colors.surfaceSecondary,
-              borderRadius: "6px",
-              overflow: "hidden",
-            }}
-          >
-            {actions.map((action, index) => (
-              <div
-                key={action.id}
-                style={{
-                  padding: "8px 10px",
-                  borderBottom: index < actions.length - 1 
-                    ? `1px solid ${theme.colors.borderSubtle}` 
-                    : "none",
-                }}
-              >
-                <div style={{ 
-                  fontSize: "11px",
-                  fontWeight: 600, 
-                  color: theme.colors.text,
-                  marginBottom: "2px",
-                }}>
-                  {action.action_type.replace(/_/g, " ")}
-                </div>
-                <div style={{ 
-                  fontSize: "10px",
-                  color: theme.colors.textMuted,
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}>
-                  <span>by {action.actor}</span>
-                  <span>{new Date(action.created_at).toLocaleTimeString()}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </InfoSection>
+          Respond
+        </Button>
+      </div>
     </div>
   );
 }
-

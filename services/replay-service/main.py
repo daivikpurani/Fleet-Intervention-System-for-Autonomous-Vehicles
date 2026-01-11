@@ -70,8 +70,9 @@ def _initialize_components():
         logger.info("Initialized telemetry normalizer")
     
     if _engine is None:
-        _engine = ReplayEngine(_reader, _producer, _scheduler, _normalizer)
-        logger.info("Initialized replay engine")
+        max_events = _config.max_events if _config.max_events is not None else 100  # Default to 100 for demo
+        _engine = ReplayEngine(_reader, _producer, _scheduler, _normalizer, _config.event_delay_seconds, max_events=max_events)
+        logger.info(f"Initialized replay engine with event delay: {_config.event_delay_seconds}s, max_events: {max_events}")
 
 
 @app.on_event("startup")

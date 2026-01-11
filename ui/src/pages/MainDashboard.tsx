@@ -3,13 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../services/api";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { useTheme } from "../contexts/ThemeContext";
 import { MapView } from "../components/MapView";
 import { AlertList } from "../components/AlertList";
 import { VehicleDetail } from "../components/VehicleDetail";
 import { IncidentPanel } from "../components/IncidentPanel";
 import { ActionButtons } from "../components/ActionButtons";
-import { FleetStatusBar } from "../components/FleetStatusBar";
 import type { Vehicle, Alert, WebSocketMessage } from "../types";
 
 interface MainDashboardProps {
@@ -17,7 +15,6 @@ interface MainDashboardProps {
 }
 
 export function MainDashboard({ demoMode }: MainDashboardProps) {
-  const { theme } = useTheme();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -136,112 +133,52 @@ export function MainDashboard({ demoMode }: MainDashboardProps) {
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === selectedVehicleId) || null;
 
   return (
-    <>
-      {/* Fleet Status Bar */}
-      <FleetStatusBar 
-        vehicles={vehicles} 
-        alerts={alerts} 
-        isConnected={isConnected} 
-      />
+    <div className="flex flex-1 overflow-hidden bg-white">
+      {/* Left Column: Alert List */}
+      <div className="w-[420px] flex flex-col border-r border-gray-200">
+        <AlertList alerts={alerts} onAlertClick={handleAlertClick} demoMode={demoMode} />
+      </div>
 
-      {/* Main Content */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* Left Column: Alert List */}
-        <div
-          style={{
-            width: "320px",
-            borderRight: `1px solid ${theme.colors.border}`,
-            display: "flex",
-            flexDirection: "column",
-            backgroundColor: theme.colors.surface,
-          }}
-        >
-          <AlertList alerts={alerts} onAlertClick={handleAlertClick} demoMode={demoMode} />
-        </div>
-
-        {/* Center Column: Map */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          {loading ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                fontSize: "14px",
-                color: theme.colors.textMuted,
-              }}
-            >
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    border: `3px solid ${theme.colors.border}`,
-                    borderTopColor: theme.colors.primary,
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                    margin: "0 auto 16px",
-                  }}
-                />
-                Initializing fleet telemetry...
-              </div>
+      {/* Center Column: Map */}
+      <div className="flex-1 flex flex-col relative">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="w-10 h-10 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
+              <div className="text-sm text-gray-500">Initializing fleet telemetry...</div>
             </div>
-          ) : error ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                fontSize: "14px",
-                color: theme.colors.error,
-                gap: "8px",
-                padding: "20px",
-              }}
-            >
-              <div>Connection Error</div>
-              <div style={{ fontSize: "13px", color: theme.colors.textSecondary }}>
-                {error}
-              </div>
-            </div>
-          ) : (
-            <MapView
-              vehicles={vehicles}
-              alerts={alerts}
-              selectedVehicleId={selectedVehicleId}
-              onVehicleClick={handleVehicleClick}
-              mapCenter={mapCenter}
-            />
-          )}
-        </div>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 p-5">
+            <div className="text-sm text-red-600 font-semibold">Connection Error</div>
+            <div className="text-xs text-gray-500">{error}</div>
+          </div>
+        ) : (
+          <MapView
+            vehicles={vehicles}
+            alerts={alerts}
+            selectedVehicleId={selectedVehicleId}
+            onVehicleClick={handleVehicleClick}
+            mapCenter={mapCenter}
+          />
+        )}
+      </div>
 
-        {/* Right Column: Vehicle Detail, Incident Panel, Actions */}
-        <div
-          style={{
-            width: "380px",
-            borderLeft: `1px solid ${theme.colors.border}`,
-            display: "flex",
-            flexDirection: "column",
-            backgroundColor: theme.colors.surface,
-            overflowY: "auto",
-          }}
-        >
-          <VehicleDetail vehicle={selectedVehicle} />
-          <div style={{ borderTop: `1px solid ${theme.colors.border}` }}>
-            <IncidentPanel alert={selectedAlert} />
-          </div>
-          <div style={{ borderTop: `1px solid ${theme.colors.border}`, marginTop: "auto" }}>
-            <ActionButtons
-              alert={selectedAlert}
-              vehicle={selectedVehicle}
-              onActionComplete={handleActionComplete}
-            />
-          </div>
+      {/* Right Column: Vehicle Detail, Incident Panel, Actions */}
+      <div className="w-96 flex flex-col bg-white border-l border-gray-200 overflow-y-auto">
+        <VehicleDetail vehicle={selectedVehicle} />
+        <div className="border-t border-gray-200">
+          <IncidentPanel alert={selectedAlert} />
+        </div>
+        <div className="border-t border-gray-200 mt-auto">
+          <ActionButtons
+            alert={selectedAlert}
+            vehicle={selectedVehicle}
+            onActionComplete={handleActionComplete}
+          />
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

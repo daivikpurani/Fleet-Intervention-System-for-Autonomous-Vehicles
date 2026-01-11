@@ -23,6 +23,8 @@ class ReplayConfig:
     kafka: KafkaConfig = field(default_factory=KafkaConfig)
     dataset_path: str = os.getenv("L5KIT_DATASET_PATH", "dataset/sample.zarr")
     replay_rate_hz: float = float(os.getenv("REPLAY_RATE_HZ", "10.0"))
+    event_delay_seconds: float = float(os.getenv("EVENT_DELAY_SECONDS", "0.05"))  # Delay between events (50ms default)
+    max_events: Optional[int] = None if os.getenv("MAX_EVENTS") is None else int(os.getenv("MAX_EVENTS"))
     demo_scenes_path: str = os.getenv(
         "DEMO_SCENES_PATH", 
         str(Path(__file__).parent / "config" / "demo_scenes.json")

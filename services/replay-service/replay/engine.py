@@ -11,6 +11,7 @@ import logging
 import sys
 from pathlib import Path
 import threading
+import time
 from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -54,6 +55,8 @@ class ReplayEngine:
         producer: KafkaProducer,
         scheduler: ReplayScheduler,
         normalizer: TelemetryNormalizer,
+        event_delay_seconds: float = 0.05,
+        max_events: Optional[int] = None,
     ):
         """Initialize replay engine.
         
@@ -62,11 +65,15 @@ class ReplayEngine:
             producer: Kafka producer instance
             scheduler: Replay scheduler instance
             normalizer: Telemetry normalizer instance
+            event_delay_seconds: Delay between event emissions in seconds (default: 0.05 = 50ms)
+            max_events: Maximum number of events to generate. If None, no limit (default: None)
         """
         self.reader = reader
         self.producer = producer
         self.scheduler = scheduler
         self.normalizer = normalizer
+        self.event_delay_seconds = event_delay_seconds
+        self._max_events = max_events
         
         self._running_event = threading.Event()
         self._replay_thread: Optional[threading.Thread] = None
@@ -74,8 +81,9 @@ class ReplayEngine:
         self._current_frame_index: Optional[int] = None
         self._previous_ego_data: Optional[Dict] = None
         self._previous_frame_timestamp: Optional[int] = None
+        self._event_count = 0
         
-        logger.info("Replay engine initialized")
+        logger.info(f"Replay engine initialized with event delay: {event_delay_seconds}s, max_events: {max_events}")
 
     def start(self, scene_ids: Optional[List[int]] = None) -> None:
         """Start replay.
@@ -100,6 +108,7 @@ class ReplayEngine:
         # Reset state
         self._previous_ego_data = None
         self._previous_frame_timestamp = None
+        self._event_count = 0
         
         # Start replay thread
         self._replay_thread = threading.Thread(
@@ -254,6 +263,12 @@ class ReplayEngine:
             scene_display_id = generate_scene_display_id(scene_id_str, event_time)
             vehicle_type = get_vehicle_type_label(vehicle_id)
             
+            # Check event limit
+            if self._max_events is not None and self._event_count >= self._max_events:
+                logger.info(f"Reached event limit ({self._max_events}), stopping event generation")
+                self._running_event.clear()
+                return
+            
             # Create and emit ego event with telemetry data
             ego_event = RawTelemetryEvent(
                 event_id=uuid4(),
@@ -274,6 +289,11 @@ class ReplayEngine:
                 label_probabilities=None,  # Ego doesn't have label_probabilities
             )
             self.producer.produce(ego_event)
+            self._event_count += 1
+            
+            # Space out events to avoid overwhelming consumers
+            if self.event_delay_seconds > 0:
+                time.sleep(self.event_delay_seconds)
             
             # Update previous ego data for velocity calculation
             self._previous_ego_data = normalized_ego
@@ -291,6 +311,12 @@ class ReplayEngine:
                 # Skip ego if it was already processed (to avoid duplicate events)
                 if ego_track_id is not None and track_id == ego_track_id:
                     continue
+                
+                # Check event limit
+                if self._max_events is not None and self._event_count >= self._max_events:
+                    logger.info(f"Reached event limit ({self._max_events}), stopping event generation")
+                    self._running_event.clear()
+                    break
                 
                 # Normalize agent data
                 normalized_agent = self.normalizer.normalize_agent(agent, track_id)
@@ -324,11 +350,22 @@ class ReplayEngine:
                     label_probabilities=normalized_agent.get('label_probabilities'),
                 )
                 self.producer.produce(agent_event)
+                self._event_count += 1
+                
+                # Space out events to avoid overwhelming consumers
+                if self.event_delay_seconds > 0:
+                    time.sleep(self.event_delay_seconds)
         else:
             # Fallback: use agent index as track_id if track_id not available
             agent_start = frame_data['agent_index_interval'][0]
             for i, agent in enumerate(agents):
                 if not self._running_event.is_set():
+                    break
+                
+                # Check event limit
+                if self._max_events is not None and self._event_count >= self._max_events:
+                    logger.info(f"Reached event limit ({self._max_events}), stopping event generation")
+                    self._running_event.clear()
                     break
                 
                 track_id = agent_start + i
@@ -365,6 +402,11 @@ class ReplayEngine:
                     label_probabilities=normalized_agent.get('label_probabilities'),
                 )
                 self.producer.produce(agent_event)
+                self._event_count += 1
+                
+                # Space out events to avoid overwhelming consumers
+                if self.event_delay_seconds > 0:
+                    time.sleep(self.event_delay_seconds)
         
         # Flush all events for this frame (batching: flush once per frame)
         self.producer.flush()

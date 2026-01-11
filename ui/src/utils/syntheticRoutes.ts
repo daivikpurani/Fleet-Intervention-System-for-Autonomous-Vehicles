@@ -163,8 +163,9 @@ function extractTrackNumber(vehicleId: string): number {
  */
 export function assignVehicleToRoute(vehicleId: string): RouteDefinition {
   const trackNum = extractTrackNumber(vehicleId);
-  // Use modulo with prime offset for better distribution
-  const routeIndex = (trackNum * 7 + 3) % SF_ROUTES.length;
+  // Use modulo with larger prime multiplier for better distribution across routes
+  // This spreads vehicles more evenly across all available routes
+  const routeIndex = (trackNum * 17 + 11) % SF_ROUTES.length;
   return SF_ROUTES[routeIndex];
 }
 
@@ -184,11 +185,11 @@ export function mapPositionToRoute(
   // Normalize Y to progress along route (0 to 1)
   // Use modulo-based wrapping for cyclic distribution along route
   // This ensures vehicles are spread along the entire route regardless of Y range
-  const cycleLength = 500; // meters - creates multiple "loops" of vehicles along route
+  const cycleLength = 2000; // meters - increased to space vehicles further apart
   const normalizedProgress = ((y % cycleLength) + cycleLength) % cycleLength / cycleLength;
   
   // Add X-based offset to further spread vehicles
-  const xOffset = ((x % 200) + 200) % 200 / 200 * 0.3; // Up to 30% additional offset
+  const xOffset = ((x % 500) + 500) % 500 / 500 * 0.6; // Increased to 60% for better spacing
   const finalProgress = (normalizedProgress + xOffset) % 1.0;
   
   // Find position along route at this progress
